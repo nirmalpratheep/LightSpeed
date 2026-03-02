@@ -104,7 +104,7 @@ def main():
     solution_path = pack_solution()
 
     print("\nLoading solution...")
-    solution = Solution.model_validate_json(solution_path.read_text())
+    solution = Solution.model_validate_json(solution_path.read_text(encoding='utf-8'))
     print(f"Loaded: {solution.name} ({solution.definition})")
 
     print("\nRunning benchmark...")
