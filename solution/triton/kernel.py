@@ -1,22 +1,564 @@
 """
-Triton Kernel Template for FlashInfer Competition.
+FlashInfer MLSys 2026 Track A — Fused MoE Kernel V3
+=====================================================
+Strategy: Load FP8 → convert FP32 → FP32 tensor cores → scale
+Using FP32 dot products avoids catastrophic cancellation errors when large
+intermediate values (from random-normal scales) cancel to give small results.
+BF16 dot products accumulate ~0.78% relative error per element which can
+dominate the result for near-zero outputs, causing >5% elements to fail the
+atol=rtol=0.01 harness tolerance with matched_ratio < 0.95 required threshold.
 
-Implement your kernel logic here. The entry point function name should match
-the `entry_point` setting in config.toml.
-
-See the track definition for required function signature and semantics.
+Dual-path: PyTorch FP32 on A100 | Triton FP32-dot on B200
+=====================================================
 """
 
-import triton
-import triton.language as tl
+import math
+import os
+
+import torch
+
+if torch.cuda.is_available():
+    _SM_MAJOR, _SM_MINOR = torch.cuda.get_device_capability()
+else:
+    _SM_MAJOR, _SM_MINOR = 0, 0
+# Default to Blackwell for production runs; allow SM90 for local Triton smoke tests.
+FORCE_TRITON_SM90 = os.getenv("MOE_FORCE_TRITON_SM90", "0") == "1"
+USE_FP8_TRITON = (_SM_MAJOR >= 10) or (_SM_MAJOR == 9 and FORCE_TRITON_SM90)
+
+# Constants from definition (const axes)
+NUM_EXPERTS = 256
+NUM_LOCAL_EXPERTS = 32
+HIDDEN_SIZE = 7168
+INTERMEDIATE_SIZE = 2048
+GEMM1_OUT_SIZE = 4096
+BLOCK = 128
+TOP_K = 8
+N_GROUP = 8
+TOPK_GROUP = 4
 
 
-@triton.jit
-def kernel():
-    """
-    Your Triton kernel implementation.
+# ═══════════════════════════════════════════════════════════════════
+# DeepSeek V3 Routing
+# ═══════════════════════════════════════════════════════════════════
+def deepseek_v3_routing(routing_logits, routing_bias, local_expert_offset,
+                        routed_scaling_factor):
+    seq_len = routing_logits.shape[0]
+    device = routing_logits.device
+    group_size = NUM_EXPERTS // N_GROUP
 
-    TODO: Implement your kernel according to the track definition.
-    The function signature should match the track requirements.
-    """
-    pass
+    s = torch.sigmoid(routing_logits.float())
+    s_biased = s + routing_bias.float().reshape(-1) if routing_bias is not None else s
+
+    s_grouped = s_biased.view(seq_len, N_GROUP, group_size)
+    top2_vals, _ = s_grouped.topk(2, dim=-1, sorted=False)
+    group_scores = top2_vals.sum(dim=-1)
+    _, top_groups = group_scores.topk(TOPK_GROUP, dim=-1, sorted=False)
+
+    group_mask = torch.zeros(seq_len, N_GROUP, device=device)
+    group_mask.scatter_(1, top_groups, 1.0)
+    score_mask = group_mask.unsqueeze(2).expand(-1, -1, group_size).reshape(seq_len, NUM_EXPERTS)
+
+    neg_inf = torch.finfo(torch.float32).min
+    scores_pruned = s_biased.masked_fill(score_mask == 0, neg_inf)
+    _, topk_idx = scores_pruned.topk(TOP_K, dim=-1, sorted=False)
+
+    M = torch.zeros_like(s)
+    M.scatter_(1, topk_idx, 1.0)
+    weights = s * M
+    weights = (weights / (weights.sum(dim=1, keepdim=True) + 1e-20)) * routed_scaling_factor
+
+    local_start = int(local_expert_offset)
+    local_mask = (topk_idx >= local_start) & (topk_idx < local_start + NUM_LOCAL_EXPERTS)
+    local_experts = (topk_idx - local_start).clamp(0, NUM_LOCAL_EXPERTS - 1)
+
+    flat_tokens = torch.arange(seq_len, device=device).unsqueeze(1).expand_as(local_mask)
+    valid = local_mask.reshape(-1)
+    flat_tids = flat_tokens.reshape(-1)[valid]
+    flat_eids = local_experts.reshape(-1)[valid]
+    flat_global = topk_idx.reshape(-1)[valid]
+    flat_wts = weights[flat_tids, flat_global]
+
+    if flat_tids.numel() == 0:
+        eo = torch.zeros(NUM_LOCAL_EXPERTS + 1, dtype=torch.int32, device=device)
+        return flat_tids.int(), flat_eids.int(), flat_wts, eo
+
+    sort_idx = torch.argsort(flat_eids, stable=True)
+    sorted_tids = flat_tids[sort_idx].int()
+    sorted_eids = flat_eids[sort_idx].int()
+    sorted_wts = flat_wts[sort_idx]
+
+    ec = torch.zeros(NUM_LOCAL_EXPERTS, dtype=torch.int32, device=device)
+    ec.scatter_add_(0, sorted_eids.long(), torch.ones_like(sorted_eids))
+    eo = torch.zeros(NUM_LOCAL_EXPERTS + 1, dtype=torch.int32, device=device)
+    eo[1:] = ec.cumsum(0)
+
+    return sorted_tids, sorted_eids, sorted_wts, eo
+
+
+# ═══════════════════════════════════════════════════════════════════
+# A100 PATH: PyTorch BF16 (reference-matched, proven correct on B200)
+# ═══════════════════════════════════════════════════════════════════
+def kernel_pytorch(routing_logits, routing_bias, hidden_states,
+                   hidden_states_scale, gemm1_weights, gemm1_weights_scale,
+                   gemm2_weights, gemm2_weights_scale,
+                   local_expert_offset, routed_scaling_factor, output):
+    seq_len = routing_logits.shape[0]
+    device = routing_logits.device
+
+    sorted_tids, sorted_eids, sorted_wts, expert_offsets = \
+        deepseek_v3_routing(routing_logits, routing_bias,
+                            local_expert_offset, routed_scaling_factor)
+
+    output.zero_()
+    if sorted_tids.numel() == 0:
+        return output
+
+    # Bulk dequant
+    A_fp32 = hidden_states.to(torch.float32)
+    A_scale = hidden_states_scale.to(torch.float32).permute(1, 0).contiguous()
+    A_scale_exp = A_scale.unsqueeze(-1).expand(-1, -1, BLOCK).reshape(seq_len, HIDDEN_SIZE)
+    A = A_fp32 * A_scale_exp
+
+    W13_fp32 = gemm1_weights.to(torch.float32)
+    S13 = gemm1_weights_scale.to(torch.float32)
+    S13 = torch.repeat_interleave(S13, BLOCK, dim=1)
+    S13 = torch.repeat_interleave(S13, BLOCK, dim=2)
+    W13 = W13_fp32 * S13
+
+    W2_fp32 = gemm2_weights.to(torch.float32)
+    S2 = gemm2_weights_scale.to(torch.float32)
+    S2 = torch.repeat_interleave(S2, BLOCK, dim=1)
+    S2 = torch.repeat_interleave(S2, BLOCK, dim=2)
+    W2 = W2_fp32 * S2
+
+    output_fp32 = torch.zeros(seq_len, HIDDEN_SIZE, dtype=torch.float32, device=device)
+    eo = expert_offsets.cpu().tolist()
+
+    for e in range(NUM_LOCAL_EXPERTS):
+        e_start, e_end = eo[e], eo[e + 1]
+        if e_start >= e_end:
+            continue
+
+        tok_ids = sorted_tids[e_start:e_end].long()
+        wts = sorted_wts[e_start:e_end]
+
+        A_e = A[tok_ids]
+        G1 = A_e.matmul(W13[e].t())
+
+        # SwiGLU: silu(X2) * X1
+        X1 = G1[:, :INTERMEDIATE_SIZE]
+        X2 = G1[:, INTERMEDIATE_SIZE:]
+        C = (X2 / (1.0 + torch.exp(-X2))) * X1
+
+        O = C.matmul(W2[e].t())
+        output_fp32.index_add_(0, tok_ids, O * wts.unsqueeze(1))
+
+    output.copy_(output_fp32.to(torch.bfloat16))
+    return output
+
+
+# ═══════════════════════════════════════════════════════════════════
+# B200 PATH: Triton with BF16 dot products + FP8 memory loads
+# ═══════════════════════════════════════════════════════════════════
+if USE_FP8_TRITON:
+    import triton
+    import triton.language as tl
+
+    def build_tile_map_gpu(expert_offsets, N, BM, BN, device):
+        """Build GEMM tile map entirely on GPU. Only one cheap .item() call (reads
+        a single int32 for total tile count).
+
+        Output: [total_tiles, 5] int64 with columns [expert_id, e_start, M_e, pm, pn].
+        int64 is required for e_start so that e_start * stride doesn't overflow int32
+        in Triton pointer arithmetic (e_start can reach ~500K for large seq_len,
+        and stride can be 7168, giving products > 2^31)."""
+        num_experts = expert_offsets.shape[0] - 1
+        e_starts = expert_offsets[:-1].to(torch.int64)            # [E] int64
+        M_es     = (expert_offsets[1:].to(torch.int64)
+                    - e_starts).clamp(min=0)                      # [E] int64
+
+        n_tiles_N        = (N + BN - 1) // BN                    # scalar int
+        m_tiles          = (M_es + BM - 1) // BM                 # [E] int64
+        tiles_per_expert = m_tiles * n_tiles_N                    # [E] int64
+
+        total_tiles = int(tiles_per_expert.sum().item())          # single read
+        if total_tiles == 0:
+            return torch.zeros(0, 5, dtype=torch.int64, device=device)
+
+        # Expand expert ids: eids_exp[i] = which expert tile i belongs to
+        eids_exp = torch.repeat_interleave(
+            torch.arange(num_experts, dtype=torch.int64, device=device),
+            tiles_per_expert)                                      # [total_tiles] int64
+
+        # Compute within-expert tile index via exclusive cumsum
+        exp_start_out = torch.zeros(num_experts, dtype=torch.int64, device=device)
+        if num_experts > 1:
+            exp_start_out[1:] = tiles_per_expert[:-1].cumsum(0)
+        local_idx = (torch.arange(total_tiles, dtype=torch.int64, device=device)
+                     - exp_start_out[eids_exp])                   # [total_tiles]
+
+        # Decompose local_idx → (pm, pn)
+        n_t    = torch.tensor(n_tiles_N, dtype=torch.int64, device=device)
+        pm_exp = local_idx // n_t                                  # int64
+        pn_exp = local_idx  % n_t                                  # int64
+
+        return torch.stack([
+            eids_exp,
+            e_starts[eids_exp],
+            M_es[eids_exp],
+            pm_exp,
+            pn_exp,
+        ], dim=1)  # [total_tiles, 5] int64
+
+    # ───────────────────────────────────────────────────────────
+    # Fused GEMM1 + SwiGLU:
+    #   Input:  hidden [T, K] FP8, gemm1_weights [E, N_full, K] FP8
+    #   N_full = GEMM1_OUT_SIZE = 2 * INTER (gate half + up half)
+    #   Each tile covers BLOCK_N=256 weight rows: [pn*128, pn*128+128) = X1 slice,
+    #   [INTER+pn*128, INTER+pn*128+128) = X2 slice.
+    #   Epilogue applies SwiGLU: act = silu(X2) * X1, stores [BM, 128] to act_out.
+    #   Eliminates g1o [T, 4096] intermediate — saves ~536 MB HBM at T=65536.
+    # ───────────────────────────────────────────────────────────
+    @triton.jit
+    def _gemm1_swiglu_kernel(
+        hidden_ptr, hidden_scale_ptr, sorted_ids_ptr,
+        B_ptr, B_scale_ptr, tile_map_ptr, total_tiles, C_ptr,
+        N: tl.constexpr,      # = GEMM1_OUT_SIZE = 4096 (total weight rows, for scale indexing)
+        INTER: tl.constexpr,  # = INTERMEDIATE_SIZE = 2048 (output cols written per tile)
+        K: tl.constexpr,      # = HIDDEN_SIZE = 7168
+        stride_h_row, stride_h_col,
+        stride_b_expert, stride_b_row, stride_b_col,
+        stride_c_row, stride_c_col,
+        stride_hs_block, stride_hs_token,
+        stride_bs_expert, stride_bs_n, stride_bs_k,
+        BLOCK_M: tl.constexpr,   # = 64
+        BLOCK_K: tl.constexpr,   # = 128
+        HALF_N:  tl.constexpr,   # = 128  (= BLOCK_N // 2, must be a constexpr param)
+        FP8_BLK: tl.constexpr,   # = 128  (FP8 quantisation block size)
+    ):
+        pid = tl.program_id(0)
+        if pid >= total_tiles:
+            return
+
+        base    = tile_map_ptr + pid * 5
+        eid     = tl.load(base + 0).to(tl.int32)
+        e_start = tl.load(base + 1)              # int64 — needed for large T pointer arithmetic
+        M_e     = tl.load(base + 2)              # int64
+        pm      = tl.load(base + 3).to(tl.int32)
+        pn      = tl.load(base + 4).to(tl.int32)  # pn ∈ [0, INTER // HALF_N) = [0, 16)
+
+        offs_m    = pm * BLOCK_M + tl.arange(0, BLOCK_M)
+        # X1 weight rows: [pn*HALF_N, pn*HALF_N + HALF_N)
+        offs_n_x1 = pn * HALF_N + tl.arange(0, HALF_N)
+        # X2 weight rows: [INTER + pn*HALF_N, INTER + pn*HALF_N + HALF_N)
+        offs_n_x2 = INTER + pn * HALF_N + tl.arange(0, HALF_N)
+
+        mm  = offs_m    < M_e
+        nm1 = offs_n_x1 < INTER   # always true by construction (pn < INTER/HALF_N)
+        nm2 = offs_n_x2 < N       # always true by construction
+
+        # Gather original token IDs (zero-copy)
+        spos  = e_start + offs_m
+        otoks = tl.load(sorted_ids_ptr + spos, mask=mm, other=0)
+
+        acc_x1 = tl.zeros((BLOCK_M, HALF_N), dtype=tl.float32)
+        acc_x2 = tl.zeros((BLOCK_M, HALF_N), dtype=tl.float32)
+
+        for ks in range(0, K, BLOCK_K):
+            offs_k = ks + tl.arange(0, BLOCK_K)
+            km     = offs_k < K
+            k_blk  = ks // FP8_BLK
+
+            # A: FP8 hidden → FP32  [BLOCK_M, BLOCK_K]
+            a_fp8 = tl.load(
+                hidden_ptr + otoks[:, None] * stride_h_row + offs_k[None, :] * stride_h_col,
+                mask=mm[:, None] & km[None, :], other=0.0)
+            a_fp32 = a_fp8.to(tl.float32)
+
+            # B_x1: FP8 weight rows for X1 slice → FP32  [HALF_N, BLOCK_K]
+            b_x1_fp8 = tl.load(
+                B_ptr + eid * stride_b_expert
+                      + offs_n_x1[:, None] * stride_b_row
+                      + offs_k[None, :] * stride_b_col,
+                mask=nm1[:, None] & km[None, :], other=0.0)
+            b_x1_fp32 = b_x1_fp8.to(tl.float32)
+
+            # B_x2: FP8 weight rows for X2 slice → FP32  [HALF_N, BLOCK_K]
+            b_x2_fp8 = tl.load(
+                B_ptr + eid * stride_b_expert
+                      + offs_n_x2[:, None] * stride_b_row
+                      + offs_k[None, :] * stride_b_col,
+                mask=nm2[:, None] & km[None, :], other=0.0)
+            b_x2_fp32 = b_x2_fp8.to(tl.float32)
+
+            # Two FP32 dots sharing the same A tile: [BM,BK] @ [BK,HALF_N] → [BM,HALF_N]
+            partial_x1 = tl.dot(a_fp32, tl.trans(b_x1_fp32), out_dtype=tl.float32)
+            partial_x2 = tl.dot(a_fp32, tl.trans(b_x2_fp32), out_dtype=tl.float32)
+
+            # Per-token A scale for this k-block  [BLOCK_M]
+            a_s = tl.load(
+                hidden_scale_ptr + k_blk * stride_hs_block + otoks * stride_hs_token,
+                mask=mm, other=1.0)
+
+            # B scale for X1: n_blk_x1 = pn  (since HALF_N == FP8_BLK == 128)
+            n_blk_x1 = pn   # = (pn * HALF_N) // FP8_BLK
+            b_s_x1 = tl.load(
+                B_scale_ptr + eid * stride_bs_expert
+                            + n_blk_x1 * stride_bs_n + k_blk * stride_bs_k)
+
+            # B scale for X2: n_blk_x2 = INTER//FP8_BLK + pn = 16 + pn
+            n_blk_x2 = INTER // FP8_BLK + pn
+            b_s_x2 = tl.load(
+                B_scale_ptr + eid * stride_bs_expert
+                            + n_blk_x2 * stride_bs_n + k_blk * stride_bs_k)
+
+            acc_x1 += partial_x1 * (a_s[:, None] * b_s_x1)
+            acc_x2 += partial_x2 * (a_s[:, None] * b_s_x2)
+
+        # SwiGLU epilogue: silu(acc_x2) * acc_x1  — matches reference
+        # silu(x) = x * sigmoid(x)
+        act = (acc_x2 * tl.sigmoid(acc_x2)) * acc_x1   # [BLOCK_M, HALF_N] FP32
+
+        # Output column offsets in act_out [T, INTER]: pn * HALF_N + [0, HALF_N)
+        offs_out = pn * HALF_N + tl.arange(0, HALF_N)
+        out_mask = offs_out < INTER
+
+        # Store as float32 to preserve full precision for GEMM2 input.
+        tl.store(
+            C_ptr + (e_start + offs_m[:, None]) * stride_c_row
+                  + offs_out[None, :] * stride_c_col,
+            act,
+            mask=mm[:, None] & out_mask[None, :])
+
+    # ───────────────────────────────────────────────────────────
+    # GEMM2: FP32 activated × FP8 weights (with block-scale)
+    # A = activated [T_sorted, INTERMEDIATE_SIZE] FP32
+    # B = gemm2_weights [expert, HIDDEN_SIZE, INTERMEDIATE_SIZE] FP8
+    # C = [T_sorted, HIDDEN_SIZE] FP32
+    # ───────────────────────────────────────────────────────────
+    @triton.jit
+    def _gemm2_kernel(
+        A_ptr, B_ptr, B_scale_ptr,
+        tile_map_ptr, total_tiles, out_ptr,
+        N: tl.constexpr, K: tl.constexpr,
+        stride_a_row, stride_a_col,
+        stride_b_expert, stride_b_row, stride_b_col,
+        stride_o_row, stride_o_col,
+        stride_bs_expert, stride_bs_n, stride_bs_k,
+        BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+        FP8_BLK: tl.constexpr,  # = 128, FP8 quantisation block size
+    ):
+        pid = tl.program_id(0)
+        if pid >= total_tiles:
+            return
+
+        base = tile_map_ptr + pid * 5
+        eid     = tl.load(base + 0).to(tl.int32)
+        e_start = tl.load(base + 1)              # int64 — needed for large T pointer arithmetic
+        M_e     = tl.load(base + 2)              # int64
+        pm      = tl.load(base + 3).to(tl.int32)
+        pn      = tl.load(base + 4).to(tl.int32)
+
+        om = pm * BLOCK_M + tl.arange(0, BLOCK_M)
+        on = pn * BLOCK_N + tl.arange(0, BLOCK_N)
+        mmask = om < M_e
+        nmask = on < N
+
+        acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
+
+        for ks in range(0, K, BLOCK_K):
+            ok = ks + tl.arange(0, BLOCK_K)
+            km = ok < K
+            k_blk = ks // FP8_BLK
+
+            # A is FP32 (SwiGLU output stored as FP32 for full precision)
+            a = tl.load(
+                A_ptr + (e_start + om[:, None]) * stride_a_row + ok[None, :] * stride_a_col,
+                mask=mmask[:, None] & km[None, :], other=0.0)
+
+            # B is FP8 → convert to FP32 for full-precision dot
+            b_fp8 = tl.load(
+                B_ptr + eid * stride_b_expert + on[:, None] * stride_b_row + ok[None, :] * stride_b_col,
+                mask=nmask[:, None] & km[None, :], other=0.0)
+            b_fp32 = b_fp8.to(tl.float32)
+
+            # Dot product: A (FP32) × B (FP32) → FP32 accumulator
+            partial = tl.dot(a, tl.trans(b_fp32), out_dtype=tl.float32)
+
+            # B_scale only (A was already dequantized FP32, no A scale needed)
+            n_blk = (pn * BLOCK_N) // FP8_BLK
+            b_s = tl.load(
+                B_scale_ptr + eid * stride_bs_expert + n_blk * stride_bs_n + k_blk * stride_bs_k)
+
+            acc += partial * b_s
+
+        # Store as float32 to preserve precision for the reduce step.
+        # g2o can have values up to ~1e6 with random scales; storing as BF16 loses
+        # 1 ULP ≈ 2048 which pushes matched_ratio below the 0.95 harness threshold.
+        tl.store(
+            out_ptr + (e_start + om[:, None]) * stride_o_row + on[None, :] * stride_o_col,
+            acc,
+            mask=mmask[:, None] & nmask[None, :])
+
+    # ───────────────────────────────────────────────────────────
+    # Weighted reduce: scatter back to original token positions
+    # ───────────────────────────────────────────────────────────
+    @triton.jit
+    def _reduce_kernel(
+        g2_ptr, sid_ptr, sw_ptr, ts_ptr, tc_ptr, ao_ptr, out_ptr,
+        seq_len, hidden_size: tl.constexpr,
+        BLOCK_H: tl.constexpr,
+    ):
+        tid = tl.program_id(0)
+        cb = tl.program_id(1)
+        if tid >= seq_len:
+            return
+        offs = cb * BLOCK_H + tl.arange(0, BLOCK_H)
+        m = offs < hidden_size
+        start = tl.load(ts_ptr + tid)
+        cnt = tl.load(tc_ptr + tid)
+        acc = tl.zeros((BLOCK_H,), dtype=tl.float32)
+        for i in tl.static_range(8):   # unrolled at JIT time; i is a Python int
+            valid = i < cnt             # runtime Triton scalar bool (i=const, cnt=runtime)
+            a = tl.load(ao_ptr + start + i,              mask=valid,     other=0)
+            w = tl.load(sw_ptr + a,                       mask=valid,     other=0.0)
+            # Cast a to int64 before multiplying by hidden_size to avoid int32 overflow
+            # (a can be up to T ≈ seq_len*TOP_K ≈ 65536*8 = 524288; 524288*7168 > 2^31)
+            v = tl.load(g2_ptr + a.to(tl.int64) * hidden_size + offs,
+                        mask=valid & m, other=0.0).to(tl.float32)
+            # Multiply by valid (0 or 1) to zero out invalid lanes — avoids tl.where shape issues
+            acc += w * v * valid.to(tl.float32)
+        tl.store(out_ptr + tid.to(tl.int64) * hidden_size + offs, acc.to(tl.bfloat16), mask=m)
+
+    def _build_assign_idx(sorted_token_ids, seq_len, device):
+        T = sorted_token_ids.shape[0]
+        reorder = torch.argsort(sorted_token_ids.long(), stable=True)
+        tc = torch.zeros(seq_len, dtype=torch.int32, device=device)
+        if T > 0:
+            tc.scatter_add_(0, sorted_token_ids.long(),
+                            torch.ones(T, dtype=torch.int32, device=device))
+        ts = torch.zeros(seq_len, dtype=torch.int32, device=device)
+        if seq_len > 1:
+            ts[1:] = tc[:-1].cumsum(0)
+        return reorder.int(), ts, tc
+
+    def kernel_triton(routing_logits, routing_bias, hidden_states,
+                      hidden_states_scale, gemm1_weights, gemm1_weights_scale,
+                      gemm2_weights, gemm2_weights_scale,
+                      local_expert_offset, routed_scaling_factor, output):
+        seq_len = routing_logits.shape[0]
+        device = routing_logits.device
+
+        stids, seids, swts, eoffs = deepseek_v3_routing(
+            routing_logits, routing_bias, local_expert_offset, routed_scaling_factor)
+
+        T = stids.shape[0]
+        output.zero_()
+        if T == 0:
+            return output
+
+        BM, BK   = 64, 128
+        BN_G1    = 256   # fused tile: 128 X1 weight rows + 128 X2 weight rows
+        BN_G2    = 128
+        # Guard: scale indexing requires BK and GEMM2 BN to be multiples of FP8 block size,
+        # and the fused GEMM1 tile must cover exactly 2 FP8 blocks (one X1, one X2).
+        assert BK   % BLOCK == 0,     f"BK={BK} must be a multiple of FP8_BLK={BLOCK}"
+        assert BN_G2 % BLOCK == 0,    f"BN_G2={BN_G2} must be a multiple of FP8_BLK={BLOCK}"
+        assert BN_G1 % (2 * BLOCK) == 0, f"BN_G1={BN_G1} must be 2× FP8_BLK={BLOCK}"
+
+        # ── Fused GEMM1+SwiGLU: [T_sorted, HIDDEN] → [T_sorted, INTER] directly ──
+        # FP32 output for full precision (avoids BF16 ULP rounding errors in large-value cases)
+        tm1 = build_tile_map_gpu(eoffs, GEMM1_OUT_SIZE, BM, BN_G1, device)
+        act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
+        if tm1.shape[0] > 0:
+            _gemm1_swiglu_kernel[(tm1.shape[0],)](
+                hidden_states, hidden_states_scale, stids,
+                gemm1_weights, gemm1_weights_scale,
+                tm1, tm1.shape[0], act_fp32,
+                N=GEMM1_OUT_SIZE, INTER=INTERMEDIATE_SIZE, K=HIDDEN_SIZE,
+                stride_h_row=hidden_states.stride(0),
+                stride_h_col=hidden_states.stride(1),
+                stride_b_expert=gemm1_weights.stride(0),
+                stride_b_row=gemm1_weights.stride(1),
+                stride_b_col=gemm1_weights.stride(2),
+                stride_c_row=act_fp32.stride(0),
+                stride_c_col=act_fp32.stride(1),
+                stride_hs_block=hidden_states_scale.stride(0),
+                stride_hs_token=hidden_states_scale.stride(1),
+                stride_bs_expert=gemm1_weights_scale.stride(0),
+                stride_bs_n=gemm1_weights_scale.stride(1),
+                stride_bs_k=gemm1_weights_scale.stride(2),
+                BLOCK_M=BM, BLOCK_K=BK, HALF_N=BN_G1 // 2, FP8_BLK=BLOCK,
+                num_warps=8, num_stages=3)
+
+        # ── GEMM2: [T_sorted, INTER] → [T_sorted, HIDDEN] (both FP32) ──
+        tm2 = build_tile_map_gpu(eoffs, HIDDEN_SIZE, BM, BN_G2, device)
+        g2o = torch.empty(T, HIDDEN_SIZE, dtype=torch.float32, device=device)
+        if tm2.shape[0] > 0:
+            _gemm2_kernel[(tm2.shape[0],)](
+                act_fp32, gemm2_weights, gemm2_weights_scale,
+                tm2, tm2.shape[0], g2o,
+                N=HIDDEN_SIZE, K=INTERMEDIATE_SIZE,
+                stride_a_row=act_fp32.stride(0),
+                stride_a_col=act_fp32.stride(1),
+                stride_b_expert=gemm2_weights.stride(0),
+                stride_b_row=gemm2_weights.stride(1),
+                stride_b_col=gemm2_weights.stride(2),
+                stride_o_row=g2o.stride(0),
+                stride_o_col=g2o.stride(1),
+                stride_bs_expert=gemm2_weights_scale.stride(0),
+                stride_bs_n=gemm2_weights_scale.stride(1),
+                stride_bs_k=gemm2_weights_scale.stride(2),
+                BLOCK_M=BM, BLOCK_N=BN_G2, BLOCK_K=BK, FP8_BLK=BLOCK,
+                num_warps=8, num_stages=3)
+        del act_fp32
+
+        # ── Weighted reduce → output ──
+        ao, ts, tc = _build_assign_idx(stids, seq_len, device)
+        BLOCK_H = 128
+        nhb = math.ceil(HIDDEN_SIZE / BLOCK_H)
+        _reduce_kernel[(seq_len, nhb)](
+            g2o, stids, swts, ts, tc, ao, output,
+            seq_len=seq_len, hidden_size=HIDDEN_SIZE,
+            BLOCK_H=BLOCK_H)
+        del g2o
+        return output
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ENTRY POINT
+# ═══════════════════════════════════════════════════════════════════
+def kernel(
+    routing_logits: torch.Tensor,
+    routing_bias: torch.Tensor,
+    hidden_states: torch.Tensor,
+    hidden_states_scale: torch.Tensor,
+    gemm1_weights: torch.Tensor,
+    gemm1_weights_scale: torch.Tensor,
+    gemm2_weights: torch.Tensor,
+    gemm2_weights_scale: torch.Tensor,
+    local_expert_offset: int,
+    routed_scaling_factor: float,
+    output: torch.Tensor = None,
+    **kwargs,  # absorbs scalar axes: num_experts, top_k, n_group, topk_group, etc.
+):
+    if isinstance(local_expert_offset, torch.Tensor):
+        local_expert_offset = local_expert_offset.item()
+    if isinstance(routed_scaling_factor, torch.Tensor):
+        routed_scaling_factor = routed_scaling_factor.item()
+
+    seq_len = routing_logits.shape[0]
+    if output is None:
+        output = torch.zeros(seq_len, HIDDEN_SIZE, dtype=torch.bfloat16,
+                             device=routing_logits.device)
+
+    if USE_FP8_TRITON:
+        return kernel_triton(
+            routing_logits, routing_bias, hidden_states, hidden_states_scale,
+            gemm1_weights, gemm1_weights_scale, gemm2_weights, gemm2_weights_scale,
+            local_expert_offset, routed_scaling_factor, output)
+    else:
+        return kernel_pytorch(
+            routing_logits, routing_bias, hidden_states, hidden_states_scale,
+            gemm1_weights, gemm1_weights_scale, gemm2_weights, gemm2_weights_scale,
+            local_expert_offset, routed_scaling_factor, output)
