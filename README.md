@@ -24,6 +24,34 @@ Create high-performance GPU kernels for state-of-the-art LLM architectures on NV
 
 * 2026.02.05: Full dataset for definitions and workloads are released at [HuggingFace](https://huggingface.co/datasets/flashinfer-ai/mlsys26-contest)
 
+## Benchmark Results (B200)
+
+**Solution:** `moe-v2-zerocopy-noatomic` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
+
+| Workload | Status | Latency (ms) | Speedup | Max Abs Error | Max Rel Error |
+|----------|--------|-------------|---------|---------------|---------------|
+| b8f4f012 | PASSED | 1.857 | 6.24x | 4.10e+03 | 7.35e+00 |
+| e05c6c03 | PASSED | 1.609 | 6.83x | 4.10e+03 | 2.31e+00 |
+| 6230e838 | PASSED | 2.435 | 5.67x | 4.10e+03 | 4.48e+01 |
+| 8f1ff9f1 | PASSED | 2.794 | 5.58x | 4.10e+03 | 8.53e+02 |
+| 1a4c6ba1 | PASSED | 3.051 | 6.83x | 4.10e+03 | 6.27e+03 |
+| a7c2bcfd | PASSED | 2.013 | 6.20x | 4.10e+03 | 9.99e+02 |
+| 2e69caee | PASSED | 1.866 | 6.10x | 4.10e+03 | 4.89e+01 |
+| 8cba5890 | PASSED | 2.179 | 5.62x | 2.05e+03 | 1.60e+02 |
+| 5e8dc11c | PASSED | 14.368 | 3.12x | 4.10e+03 | 2.55e+04 |
+| 58a34f27 | PASSED | 10.525 | 3.38x | 4.10e+03 | 4.75e+08 |
+| 5eadab1e | PASSED | 2.112 | 6.43x | 4.10e+03 | 8.94e+01 |
+| eedc63b2 | PASSED | 2.571 | 5.24x | 4.10e+03 | 8.08e+01 |
+| e626d3e6 | PASSED | 2.662 | 5.66x | 4.10e+03 | 2.46e+02 |
+| 74d7ff04 | PASSED | 2.659 | 5.52x | 4.10e+03 | 1.55e+02 |
+| 4822167c | PASSED | 2.531 | 5.85x | 4.10e+03 | 1.45e+02 |
+| 81955b1e | PASSED | 2.649 | 5.41x | 4.10e+03 | 1.06e+02 |
+| 76010cb4 | PASSED | 2.625 | 5.37x | 4.10e+03 | 7.78e+02 |
+| fc378037 | PASSED | 2.672 | 5.43x | 4.10e+03 | 4.04e+02 |
+| f7d6ac7c | PASSED | 2.283 | 5.81x | 2.05e+03 | 5.53e+01 |
+
+**Summary:** All 19 workloads passed. Speedups range from 3.12x to 6.83x. Numerical accuracy needs improvement (high abs/rel errors).
+
 ## Competition Tracks
 
 The competition features three tracks, each targeting a critical LLM operation:

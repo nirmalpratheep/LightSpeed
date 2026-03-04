@@ -72,7 +72,7 @@ def pack_solution(output_path: Path = None) -> Path:
     if output_path is None:
         output_path = PROJECT_ROOT / "solution.json"
 
-    output_path.write_text(solution.model_dump_json(indent=2))
+    output_path.write_text(solution.model_dump_json(indent=2), encoding='utf-8')
     print(f"Solution packed: {output_path}")
     print(f"  Name: {solution.name}")
     print(f"  Definition: {solution.definition}")
