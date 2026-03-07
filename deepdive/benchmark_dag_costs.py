@@ -284,15 +284,30 @@ GEMM_SIZES_SQUARE = [128, 256, 512, 1024, 2048, 4096, 8192]
 # MoE-relevant aspect ratios: (M, N, K)
 # Typical MoE shapes: small M (tokens per expert), large N and K (hidden dims)
 GEMM_SIZES_MOE = [
-    (1, 4096, 7168),      # T=1 per expert, GEMM1-like
+    # GEMM1 shapes: (Tk, 2*I=4096, H=7168)
+    (1, 4096, 7168),
+    (2, 4096, 7168),
     (4, 4096, 7168),
+    (8, 4096, 7168),
     (16, 4096, 7168),
+    (28, 4096, 7168),
     (64, 4096, 7168),
+    (128, 4096, 7168),
     (256, 4096, 7168),
-    (1, 7168, 2048),      # T=1 per expert, GEMM2-like
+    (440, 4096, 7168),
+    (512, 4096, 7168),
+    # GEMM2 shapes: (Tk, H=7168, I=2048)
+    (1, 7168, 2048),
+    (2, 7168, 2048),
+    (4, 7168, 2048),
+    (8, 7168, 2048),
     (16, 7168, 2048),
+    (28, 7168, 2048),
     (64, 7168, 2048),
+    (128, 7168, 2048),
     (256, 7168, 2048),
+    (440, 7168, 2048),
+    (512, 7168, 2048),
 ]
 
 
@@ -389,8 +404,8 @@ def bench_bf16_gemm(warmup, iters):
 
 
 def bench_fp32_gemm(warmup, iters):
-    """Measure FP32 GEMM throughput at various sizes."""
-    print("  FP32 GEMM:")
+    """Measure FP32 GEMM throughput at various sizes (square + MoE shapes)."""
+    print("  FP32 GEMM (square):")
     measurements = []
 
     for N in GEMM_SIZES_SQUARE:
@@ -411,6 +426,57 @@ def bench_fp32_gemm(warmup, iters):
             "tflops": round(tflops, 1),
         })
         print(f"    {N:>5}x{N:<5}: {us:>10.1f} us  {tflops:>8.1f} TFLOPS")
+        del a, b
+        torch.cuda.empty_cache()
+
+    # MoE-shaped FP32 GEMMs matching kernel_ref.py per-expert shapes
+    # GEMM1: [Tk, H] @ [H, 2I] -> [Tk, 2*I], GEMM2: [Tk, I] @ [I, H] -> [Tk, H]
+    # Tk values span real workloads: T=1->Tk=1, T=80->Tk=2, T=901->Tk=28, T=14107->Tk=440
+    FP32_MOE_SHAPES = [
+        # GEMM1 shapes: (Tk, 2*I=4096, H=7168)
+        (1, 4096, 7168),
+        (2, 4096, 7168),
+        (4, 4096, 7168),
+        (8, 4096, 7168),
+        (16, 4096, 7168),
+        (28, 4096, 7168),
+        (64, 4096, 7168),
+        (128, 4096, 7168),
+        (256, 4096, 7168),
+        (440, 4096, 7168),
+        (512, 4096, 7168),
+        # GEMM2 shapes: (Tk, H=7168, I=2048)
+        (1, 7168, 2048),
+        (2, 7168, 2048),
+        (4, 7168, 2048),
+        (8, 7168, 2048),
+        (16, 7168, 2048),
+        (28, 7168, 2048),
+        (64, 7168, 2048),
+        (128, 7168, 2048),
+        (256, 7168, 2048),
+        (440, 7168, 2048),
+        (512, 7168, 2048),
+    ]
+    print("  FP32 GEMM (MoE shapes):")
+    for M, NN, K in FP32_MOE_SHAPES:
+        a = torch.randn(M, K, device="cuda", dtype=torch.float32)
+        b = torch.randn(NN, K, device="cuda", dtype=torch.float32)
+
+        def fn():
+            torch.mm(a, b.t())
+
+        us = gpu_timer(fn, warmup=warmup, iters=iters)
+        flops = 2 * M * NN * K
+        tflops = flops / (us * 1e-6) / 1e12
+        measurements.append({
+            "shape": f"{M}x{NN}x{K}",
+            "M": M, "N": NN, "K": K,
+            "flops": flops,
+            "latency_us": round(us, 3),
+            "tflops": round(tflops, 1),
+        })
+        print(f"    {M:>5}x{NN:>5}x{K:<5}: {us:>10.1f} us  {tflops:>8.1f} TFLOPS")
         del a, b
         torch.cuda.empty_cache()
 
