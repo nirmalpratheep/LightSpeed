@@ -1,55 +1,46 @@
 """
-Benchmark script for MoE Kernel DAG cost model.
+Hardware Cost Primitives Benchmark for B200 GPU.
 
-Measures actual latency (wall-clock, memory-only, compute) for each op
-in the DeepSeek-V3 MoE kernel DAG on a B200 GPU.
+Measures the two fundamental costs for modeling ANY kernel DAG:
+  1. Data movement: latency = f(bytes) for HBM read/write/copy, L2-warm
+  2. Computation: latency = f(FLOPs, precision) for FP8/BF16/FP32 GEMM, FP32 pointwise
 
 Usage:
-    # Single sequence length:
-    python deepdive/benchmark_dag_costs.py --T 4096
+    python deepdive/benchmark_dag_costs.py
+    python deepdive/benchmark_dag_costs.py --output results.json
+    python deepdive/benchmark_dag_costs.py --warmup 20 --iters 200
 
-    # All workloads from contest JSONL:
-    python deepdive/benchmark_dag_costs.py --workloads mlsys26-contest/workloads/moe/moe_fp8_block_scale_ds_routing_topk8_ng8_kg4_e32_h7168_i2048.jsonl
-
-Output:
-    - Summary table to stdout
-    - dag_costs.json (single T) or dag_costs_all.json (all workloads)
+Output JSON contains raw measurements + derived formulas so any DAG can be costed as:
+    cost = max(bytes / BW, flops / peak_throughput) + num_kernels * launch_overhead
 """
 
 import argparse
 import json
 import os
-import time
 from statistics import median
 
+import numpy as np
 import torch
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-H = 7168
-I = 2048
-E_LOCAL = 32
-E_GLOBAL = 256
-BLOCK = 128
-TOP_K = 8
-N_GROUP = 8
-TOPK_GROUP = 4
-
 
 # ---------------------------------------------------------------------------
-# Timing utilities
+# Timing utility
 # ---------------------------------------------------------------------------
 
-def gpu_timer(fn, warmup=10, iters=100):
-    """Time a GPU function using cuda events. Returns median latency in us."""
-    # Warmup
+def gpu_timer(fn, warmup=10, iters=100, flush_l2_each=False):
+    """Time a GPU function using CUDA events. Returns median latency in us.
+
+    If flush_l2_each=True, flushes L2 cache before each measured iteration
+    to ensure cold-HBM measurements.
+    """
     for _ in range(warmup):
         fn()
     torch.cuda.synchronize()
 
     times = []
     for _ in range(iters):
+        if flush_l2_each:
+            _flush_l2()
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         start.record()
@@ -61,749 +52,564 @@ def gpu_timer(fn, warmup=10, iters=100):
     return median(times)
 
 
-def flush_l2():
-    """Flush L2 cache by reading a large buffer."""
-    buf = torch.empty(256 * 1024 * 1024, dtype=torch.uint8, device="cuda")
-    buf.zero_()
-    del buf
+# Use 512MB to ensure we exceed B200 L2 cache size
+_L2_FLUSH_BUF = None
+
+def _flush_l2():
+    """Flush L2 cache by writing a large buffer (>= L2 size)."""
+    global _L2_FLUSH_BUF
+    if _L2_FLUSH_BUF is None:
+        _L2_FLUSH_BUF = torch.empty(512 * 1024 * 1024, dtype=torch.uint8, device="cuda")
+    _L2_FLUSH_BUF.zero_()
     torch.cuda.synchronize()
 
 
 # ---------------------------------------------------------------------------
-# Part 1: Hardware Characterization
+# Part 1: Data Movement Latency
 # ---------------------------------------------------------------------------
 
-def measure_hbm_bandwidth(warmup=10, iters=50):
-    """Measure HBM bandwidth with large tensor copies."""
-    results = {}
-    for size_mb in [1, 10, 100, 1000]:
-        n_elements = size_mb * 1024 * 1024 // 4  # fp32
+DATA_SIZES = [
+    1 * 1024,           # 1 KB
+    4 * 1024,           # 4 KB
+    16 * 1024,          # 16 KB
+    64 * 1024,          # 64 KB
+    256 * 1024,         # 256 KB
+    1 * 1024 * 1024,    # 1 MB
+    4 * 1024 * 1024,    # 4 MB
+    16 * 1024 * 1024,   # 16 MB
+    64 * 1024 * 1024,   # 64 MB
+    256 * 1024 * 1024,  # 256 MB
+    1024 * 1024 * 1024, # 1 GB
+]
+
+
+def _fmt_size(nbytes):
+    if nbytes >= 1024**3:
+        return f"{nbytes / 1024**3:.0f}GB"
+    elif nbytes >= 1024**2:
+        return f"{nbytes / 1024**2:.0f}MB"
+    elif nbytes >= 1024:
+        return f"{nbytes / 1024:.0f}KB"
+    return f"{nbytes}B"
+
+
+def bench_hbm_read(warmup, iters):
+    """Measure HBM read bandwidth (cold L2) at various sizes."""
+    print("  HBM Read (cold L2):")
+    measurements = []
+    for nbytes in DATA_SIZES:
+        n_elements = nbytes // 4  # float32
+        src = torch.randn(n_elements, device="cuda", dtype=torch.float32)
+
+        # clone() = read src from HBM + write dst to HBM, but we isolate read
+        # by using .clone() and measuring. The clone reads all of src.
+        def fn():
+            src.clone()
+
+        us = gpu_timer(fn, warmup=warmup, iters=iters, flush_l2_each=True)
+        # clone does read + write, so total bytes moved = 2 * nbytes
+        bw_gbps = (2 * nbytes) / (us * 1e-6) / 1e9
+        measurements.append({
+            "bytes": nbytes,
+            "latency_us": round(us, 3),
+            "bandwidth_GBps": round(bw_gbps, 1),
+        })
+        print(f"    {_fmt_size(nbytes):>8s}: {us:>10.1f} us  {bw_gbps:>8.1f} GB/s")
+
+        del src
+        torch.cuda.empty_cache()
+
+    return measurements
+
+
+def bench_hbm_write(warmup, iters):
+    """Measure HBM write bandwidth at various sizes."""
+    print("  HBM Write (cold L2):")
+    measurements = []
+    for nbytes in DATA_SIZES:
+        n_elements = nbytes // 4
+        dst = torch.empty(n_elements, device="cuda", dtype=torch.float32)
+
+        def fn():
+            dst.zero_()
+
+        us = gpu_timer(fn, warmup=warmup, iters=iters, flush_l2_each=True)
+        bw_gbps = nbytes / (us * 1e-6) / 1e9  # write-only
+        measurements.append({
+            "bytes": nbytes,
+            "latency_us": round(us, 3),
+            "bandwidth_GBps": round(bw_gbps, 1),
+        })
+        print(f"    {_fmt_size(nbytes):>8s}: {us:>10.1f} us  {bw_gbps:>8.1f} GB/s")
+
+        del dst
+        torch.cuda.empty_cache()
+
+    return measurements
+
+
+def bench_hbm_copy(warmup, iters):
+    """Measure HBM copy (read+write) bandwidth at various sizes."""
+    print("  HBM Copy (cold L2):")
+    measurements = []
+    for nbytes in DATA_SIZES:
+        n_elements = nbytes // 4
         src = torch.randn(n_elements, device="cuda", dtype=torch.float32)
         dst = torch.empty_like(src)
 
-        def copy_fn():
+        def fn():
             dst.copy_(src)
 
-        us = gpu_timer(copy_fn, warmup=warmup, iters=iters)
-        bytes_moved = n_elements * 4  # read src + write dst = 2x, but copy is read+write
-        bw_gbps = (2 * bytes_moved) / (us * 1e-6) / 1e9
-        results[f"{size_mb}MB"] = {"latency_us": us, "bandwidth_GBps": round(bw_gbps, 1)}
+        us = gpu_timer(fn, warmup=warmup, iters=iters, flush_l2_each=True)
+        bw_gbps = (2 * nbytes) / (us * 1e-6) / 1e9  # read + write
+        measurements.append({
+            "bytes": nbytes,
+            "latency_us": round(us, 3),
+            "bandwidth_GBps": round(bw_gbps, 1),
+        })
+        print(f"    {_fmt_size(nbytes):>8s}: {us:>10.1f} us  {bw_gbps:>8.1f} GB/s")
 
         del src, dst
         torch.cuda.empty_cache()
 
-    return results
+    return measurements
 
 
-def measure_peak_flops(warmup=10, iters=20):
-    """Measure peak TFLOPS for different precisions via large GEMMs."""
-    results = {}
-    N = 4096
+def bench_l2_warm(warmup, iters):
+    """Measure L2-warm read bandwidth (no L2 flush between iterations)."""
+    print("  L2 Warm Read:")
+    # Only test sizes that fit in L2 (up to ~128MB on B200)
+    l2_sizes = [s for s in DATA_SIZES if s <= 128 * 1024 * 1024]
+    measurements = []
+    for nbytes in l2_sizes:
+        n_elements = nbytes // 4
+        src = torch.randn(n_elements, device="cuda", dtype=torch.float32)
 
-    for dtype, name in [
-        (torch.bfloat16, "bf16"),
-        (torch.float32, "fp32"),
-    ]:
-        a = torch.randn(N, N, device="cuda", dtype=dtype)
-        b = torch.randn(N, N, device="cuda", dtype=dtype)
+        def fn():
+            src.clone()
 
-        def gemm_fn():
-            torch.mm(a, b)
+        # flush_l2_each=False -> data stays warm in L2 after first iteration
+        us = gpu_timer(fn, warmup=warmup, iters=iters, flush_l2_each=False)
+        bw_gbps = (2 * nbytes) / (us * 1e-6) / 1e9
+        measurements.append({
+            "bytes": nbytes,
+            "latency_us": round(us, 3),
+            "bandwidth_GBps": round(bw_gbps, 1),
+        })
+        print(f"    {_fmt_size(nbytes):>8s}: {us:>10.1f} us  {bw_gbps:>8.1f} GB/s")
 
-        us = gpu_timer(gemm_fn, warmup=warmup, iters=iters)
-        flops = 2 * N * N * N  # 2*N^3 for matmul
-        tflops = flops / (us * 1e-6) / 1e12
-        results[name] = {"latency_us": round(us, 1), "tflops": round(tflops, 1)}
-
-        del a, b
+        del src
         torch.cuda.empty_cache()
 
-    # FP8 GEMM if supported
-    try:
-        a_fp8 = torch.randn(N, N, device="cuda", dtype=torch.bfloat16).to(torch.float8_e4m3fn)
-        b_fp8 = torch.randn(N, N, device="cuda", dtype=torch.bfloat16).to(torch.float8_e4m3fn)
-
-        def fp8_gemm_fn():
-            torch._scaled_mm(a_fp8, b_fp8.t(),
-                             scale_a=torch.tensor(1.0, device="cuda"),
-                             scale_b=torch.tensor(1.0, device="cuda"),
-                             out_dtype=torch.bfloat16)
-
-        us = gpu_timer(fp8_gemm_fn, warmup=warmup, iters=iters)
-        flops = 2 * N * N * N
-        tflops = flops / (us * 1e-6) / 1e12
-        results["fp8"] = {"latency_us": round(us, 1), "tflops": round(tflops, 1)}
-        del a_fp8, b_fp8
-        torch.cuda.empty_cache()
-    except Exception as e:
-        results["fp8"] = {"error": str(e)}
-
-    return results
+    return measurements
 
 
-def measure_launch_overhead(warmup=100, iters=1000):
-    """Measure kernel launch overhead with a tiny operation."""
-    x = torch.tensor(1.0, device="cuda")
+def fit_linear_model(measurements):
+    """Fit latency_us = alpha + bytes / BW to measurements.
 
-    def tiny_fn():
-        x + x
+    Returns (alpha_us, bandwidth_GBps).
+    Uses only the larger sizes (>= 1MB) for a stable fit.
+    """
+    large = [m for m in measurements if m["bytes"] >= 1 * 1024 * 1024]
+    if len(large) < 2:
+        large = measurements[-2:]
 
-    us = gpu_timer(tiny_fn, warmup=warmup, iters=iters)
-    return round(us, 2)
+    x = np.array([m["bytes"] for m in large], dtype=np.float64)
+    y = np.array([m["latency_us"] for m in large], dtype=np.float64)
+
+    # Linear fit: y = a + b*x  ->  b = 1/BW (us per byte)
+    coeffs = np.polyfit(x, y, 1)
+    b, a = coeffs  # slope, intercept
+    alpha_us = max(a, 0)  # launch overhead can't be negative
+    bw_bytes_per_us = 1.0 / b if b > 0 else float("inf")
+    bw_gbps = bw_bytes_per_us * 1e-3  # bytes/us -> GB/s
+
+    return round(alpha_us, 3), round(bw_gbps, 1)
 
 
-def hardware_characterization(warmup, iters):
-    """Run all hardware characterization benchmarks."""
-    print("=" * 70)
-    print("Part 1: Hardware Characterization")
+def benchmark_data_movement(warmup, iters):
+    """Run all data movement benchmarks."""
+    print("\n" + "=" * 70)
+    print("Part 1: Data Movement Latency")
     print("=" * 70)
 
-    gpu_name = torch.cuda.get_device_name(0)
-    print(f"GPU: {gpu_name}")
-    print(f"CUDA: {torch.version.cuda}")
-    print(f"PyTorch: {torch.__version__}")
-    print()
+    hbm_read = bench_hbm_read(warmup, iters)
+    hbm_write = bench_hbm_write(warmup, iters)
+    hbm_copy = bench_hbm_copy(warmup, iters)
+    l2_warm = bench_l2_warm(warmup, iters)
 
-    print("HBM Bandwidth:")
-    hbm = measure_hbm_bandwidth(warmup=warmup, iters=max(iters // 2, 10))
-    for size, data in hbm.items():
-        print(f"  {size:>8s}: {data['bandwidth_GBps']:>8.1f} GB/s  ({data['latency_us']:.1f} us)")
+    # Fit linear models
+    read_alpha, read_bw = fit_linear_model(hbm_read)
+    write_alpha, write_bw = fit_linear_model(hbm_write)
+    copy_alpha, copy_bw = fit_linear_model(hbm_copy)
+    l2_alpha, l2_bw = fit_linear_model(l2_warm)
 
-    # Use largest size as representative HBM BW
-    hbm_bw = hbm[list(hbm.keys())[-1]]["bandwidth_GBps"]
-    print()
-
-    print("Peak FLOPS:")
-    flops_results = measure_peak_flops(warmup=warmup, iters=max(iters // 5, 5))
-    for name, data in flops_results.items():
-        if "error" in data:
-            print(f"  {name:>4s}: ERROR - {data['error']}")
-        else:
-            print(f"  {name:>4s}: {data['tflops']:>8.1f} TFLOPS  ({data['latency_us']:.1f} us)")
-    print()
-
-    print("Kernel Launch Overhead:")
-    overhead = measure_launch_overhead()
-    print(f"  {overhead:.2f} us")
-    print()
+    print(f"\n  Derived formulas (latency_us = alpha + bytes / BW):")
+    print(f"    HBM Read:  alpha={read_alpha:.1f} us, BW={read_bw:.0f} GB/s")
+    print(f"    HBM Write: alpha={write_alpha:.1f} us, BW={write_bw:.0f} GB/s")
+    print(f"    HBM Copy:  alpha={copy_alpha:.1f} us, BW={copy_bw:.0f} GB/s")
+    print(f"    L2 Warm:   alpha={l2_alpha:.1f} us, BW={l2_bw:.0f} GB/s")
 
     return {
-        "gpu_name": gpu_name,
-        "hbm_bandwidth_GBps": hbm_bw,
-        "peak_flops": flops_results,
-        "kernel_launch_overhead_us": overhead,
-        "hbm_details": hbm,
+        "hbm_read": {
+            "alpha_us": read_alpha,
+            "peak_bandwidth_GBps": read_bw,
+            "measurements": hbm_read,
+        },
+        "hbm_write": {
+            "alpha_us": write_alpha,
+            "peak_bandwidth_GBps": write_bw,
+            "measurements": hbm_write,
+        },
+        "hbm_copy": {
+            "alpha_us": copy_alpha,
+            "peak_bandwidth_GBps": copy_bw,
+            "measurements": hbm_copy,
+        },
+        "l2_warm": {
+            "alpha_us": l2_alpha,
+            "peak_bandwidth_GBps": l2_bw,
+            "measurements": l2_warm,
+        },
     }
 
 
 # ---------------------------------------------------------------------------
-# Tensor allocation
+# Part 2: Compute Latency
 # ---------------------------------------------------------------------------
 
-def allocate_tensors(T, device="cuda"):
-    """Allocate all input tensors at production scale."""
-    Tk = T * TOP_K // E_GLOBAL  # avg tokens per expert
+# Square sizes for GEMM saturation curve
+GEMM_SIZES_SQUARE = [128, 256, 512, 1024, 2048, 4096, 8192]
 
-    tensors = {}
-
-    # Graph inputs
-    tensors["hidden_states"] = torch.randn(T, H, device=device, dtype=torch.bfloat16).to(torch.float8_e4m3fn)
-    tensors["hidden_states_scale"] = torch.randn(H // BLOCK, T, device=device, dtype=torch.float32).abs() * 0.01
-    tensors["gemm1_weights"] = torch.randn(E_LOCAL, 2 * I, H, device=device, dtype=torch.bfloat16).to(torch.float8_e4m3fn)
-    tensors["gemm1_weights_scale"] = torch.randn(E_LOCAL, (2 * I) // BLOCK, H // BLOCK, device=device, dtype=torch.float32).abs() * 0.01
-    tensors["gemm2_weights"] = torch.randn(E_LOCAL, H, I, device=device, dtype=torch.bfloat16).to(torch.float8_e4m3fn)
-    tensors["gemm2_weights_scale"] = torch.randn(E_LOCAL, H // BLOCK, I // BLOCK, device=device, dtype=torch.float32).abs() * 0.01
-    tensors["routing_logits"] = torch.randn(T, E_GLOBAL, device=device, dtype=torch.float32)
-    tensors["routing_bias"] = torch.randn(E_GLOBAL, device=device, dtype=torch.float32) * 0.01
-
-    # Pre-compute dequantized tensors for expert compute benchmarks
-    # (so we can benchmark GEMM in isolation without including dequant cost)
-    A_fp32 = tensors["hidden_states"].to(torch.float32)
-    A_scale = tensors["hidden_states_scale"].to(torch.float32)
-    A_scale_TH = A_scale.permute(1, 0).contiguous()
-    A_scale_expanded = (
-        A_scale_TH.unsqueeze(-1)
-        .repeat(1, 1, BLOCK)
-        .reshape(T, H)
-        .contiguous()
-    )
-    tensors["A"] = A_fp32 * A_scale_expanded
-
-    W13_fp32 = tensors["gemm1_weights"].to(torch.float32)
-    S13 = tensors["gemm1_weights_scale"].to(torch.float32)
-    S13_exp = torch.repeat_interleave(S13, BLOCK, dim=1)
-    S13_exp = torch.repeat_interleave(S13_exp, BLOCK, dim=2)
-    tensors["W13"] = W13_fp32 * S13_exp
-
-    W2_fp32 = tensors["gemm2_weights"].to(torch.float32)
-    S2 = tensors["gemm2_weights_scale"].to(torch.float32)
-    S2_exp = torch.repeat_interleave(S2, BLOCK, dim=1)
-    S2_exp = torch.repeat_interleave(S2_exp, BLOCK, dim=2)
-    tensors["W2"] = W2_fp32 * S2_exp
-
-    # Pre-compute routing outputs for expert benchmarks
-    logits = tensors["routing_logits"].to(torch.float32)
-    bias = tensors["routing_bias"].to(torch.float32)
-    s = torch.sigmoid(logits)
-    s_with_bias = s + bias
-    group_size = E_GLOBAL // N_GROUP
-    s_wb_grouped = s_with_bias.view(T, N_GROUP, group_size)
-    top2_vals, _ = torch.topk(s_wb_grouped, k=2, dim=2, largest=True, sorted=False)
-    group_scores = top2_vals.sum(dim=2)
-    _, group_idx = torch.topk(group_scores, k=TOPK_GROUP, dim=1, largest=True, sorted=False)
-    group_mask = torch.zeros_like(group_scores)
-    group_mask.scatter_(1, group_idx, 1.0)
-    score_mask = group_mask.unsqueeze(2).expand(T, N_GROUP, group_size).reshape(T, E_GLOBAL)
-    neg_inf = torch.finfo(torch.float32).min
-    scores_pruned = s_with_bias.masked_fill(score_mask == 0, neg_inf)
-    _, topk_idx = torch.topk(scores_pruned, k=TOP_K, dim=1, largest=True, sorted=False)
-    M = torch.zeros_like(s)
-    M.scatter_(1, topk_idx, 1.0)
-    weights = s * M
-    weights_sum = weights.sum(dim=1, keepdim=True) + 1e-20
-    routed_scaling_factor = 2.5
-    weights = (weights / weights_sum) * routed_scaling_factor
-
-    tensors["topk_idx"] = topk_idx
-    tensors["weights"] = weights
-
-    # Pre-compute per-expert token indices
-    local_expert_offset = 0
-    token_indices = []
-    for le in range(E_LOCAL):
-        ge = local_expert_offset + le
-        sel = (topk_idx == ge).any(dim=1)
-        idx = torch.nonzero(sel, as_tuple=False).squeeze(1)
-        token_indices.append(idx)
-    tensors["token_indices"] = token_indices
-    tensors["Tk"] = Tk
-
-    return tensors
-
-
-# ---------------------------------------------------------------------------
-# Part 2: Per-Op Benchmarks
-# ---------------------------------------------------------------------------
-
-def bench_dequant_a(tensors, warmup, iters):
-    """Op[0]: DequantA - hidden_states.float() * scale_expanded"""
-    hs = tensors["hidden_states"]
-    scale = tensors["hidden_states_scale"]
-    T = hs.shape[0]
-
-    # Pre-expand scale (this is part of the op)
-    def fn():
-        A_fp32 = hs.to(torch.float32)
-        A_scale = scale.to(torch.float32)
-        A_scale_TH = A_scale.permute(1, 0).contiguous()
-        A_scale_expanded = (
-            A_scale_TH.unsqueeze(-1)
-            .repeat(1, 1, BLOCK)
-            .reshape(T, H)
-            .contiguous()
-        )
-        return A_fp32 * A_scale_expanded
-
-    flush_l2()
-    us = gpu_timer(fn, warmup=warmup, iters=iters)
-
-    bytes_in = T * H * 1 + (H // BLOCK) * T * 4
-    bytes_out = T * H * 4
-    flops = T * H
-    return us, bytes_in, bytes_out, flops
-
-
-def bench_dequant_w13(tensors, warmup, iters):
-    """Op[1]: DequantW13 - gemm1_weights.float() * scale_expanded"""
-    w = tensors["gemm1_weights"]
-    s = tensors["gemm1_weights_scale"]
-
-    def fn():
-        W_fp32 = w.to(torch.float32)
-        S = s.to(torch.float32)
-        S_exp = torch.repeat_interleave(S, BLOCK, dim=1)
-        S_exp = torch.repeat_interleave(S_exp, BLOCK, dim=2)
-        return W_fp32 * S_exp
-
-    flush_l2()
-    us = gpu_timer(fn, warmup=warmup, iters=iters)
-
-    bytes_in = E_LOCAL * 2 * I * H * 1 + E_LOCAL * (2 * I // BLOCK) * (H // BLOCK) * 4
-    bytes_out = E_LOCAL * 2 * I * H * 4
-    flops = E_LOCAL * 2 * I * H
-    return us, bytes_in, bytes_out, flops
-
-
-def bench_dequant_w2(tensors, warmup, iters):
-    """Op[2]: DequantW2 - gemm2_weights.float() * scale_expanded"""
-    w = tensors["gemm2_weights"]
-    s = tensors["gemm2_weights_scale"]
-
-    def fn():
-        W_fp32 = w.to(torch.float32)
-        S = s.to(torch.float32)
-        S_exp = torch.repeat_interleave(S, BLOCK, dim=1)
-        S_exp = torch.repeat_interleave(S_exp, BLOCK, dim=2)
-        return W_fp32 * S_exp
-
-    flush_l2()
-    us = gpu_timer(fn, warmup=warmup, iters=iters)
-
-    bytes_in = E_LOCAL * H * I * 1 + E_LOCAL * (H // BLOCK) * (I // BLOCK) * 4
-    bytes_out = E_LOCAL * H * I * 4
-    flops = E_LOCAL * H * I
-    return us, bytes_in, bytes_out, flops
-
-
-def bench_routing(tensors, warmup, iters):
-    """Op[3]: Routing - sigmoid -> add_bias -> group_topk -> normalize"""
-    logits = tensors["routing_logits"]
-    bias = tensors["routing_bias"]
-    T = logits.shape[0]
-
-    def fn():
-        s = torch.sigmoid(logits)
-        s_with_bias = s + bias
-        group_size = E_GLOBAL // N_GROUP
-        s_wb_grouped = s_with_bias.view(T, N_GROUP, group_size)
-        top2_vals, _ = torch.topk(s_wb_grouped, k=2, dim=2, largest=True, sorted=False)
-        group_scores = top2_vals.sum(dim=2)
-        _, group_idx = torch.topk(group_scores, k=TOPK_GROUP, dim=1, largest=True, sorted=False)
-        group_mask = torch.zeros_like(group_scores)
-        group_mask.scatter_(1, group_idx, 1.0)
-        score_mask = group_mask.unsqueeze(2).expand(T, N_GROUP, group_size).reshape(T, E_GLOBAL)
-        neg_inf = torch.finfo(torch.float32).min
-        scores_pruned = s_with_bias.masked_fill(score_mask == 0, neg_inf)
-        _, topk_idx = torch.topk(scores_pruned, k=TOP_K, dim=1, largest=True, sorted=False)
-        M = torch.zeros_like(s)
-        M.scatter_(1, topk_idx, 1.0)
-        weights = s * M
-        weights_sum = weights.sum(dim=1, keepdim=True) + 1e-20
-        weights = (weights / weights_sum) * 2.5
-        return topk_idx, weights
-
-    flush_l2()
-    us = gpu_timer(fn, warmup=warmup, iters=iters)
-
-    bytes_in = T * E_GLOBAL * 4 + E_GLOBAL * 4
-    bytes_out = T * TOP_K * 8 + T * E_GLOBAL * 4
-    flops = T * E_GLOBAL * 20  # approximate
-    return us, bytes_in, bytes_out, flops
-
-
-def bench_gemm1(tensors, warmup, iters):
-    """Op[4]: GEMM1 - A_e @ W13_e.T for all 32 experts"""
-    A = tensors["A"]
-    W13 = tensors["W13"]
-    topk_idx = tensors["topk_idx"]
-    token_indices = tensors["token_indices"]
-
-    def fn():
-        for le in range(E_LOCAL):
-            idx = token_indices[le]
-            if idx.numel() == 0:
-                continue
-            A_e = A.index_select(0, idx)
-            W13_e = W13[le]
-            A_e.matmul(W13_e.t())
-
-    flush_l2()
-    us = gpu_timer(fn, warmup=warmup, iters=iters)
-
-    # Compute totals across all experts
-    total_tokens = sum(idx.numel() for idx in token_indices)
-    bytes_in = total_tokens * H * 4 + E_LOCAL * 2 * I * H * 4 + total_tokens * 8  # A + W13 + idx
-    bytes_out = total_tokens * 2 * I * 4
-    flops = total_tokens * 2 * H * 2 * I  # 2*Tk*H*(2I) per expert summed
-    return us, bytes_in, bytes_out, flops
-
-
-def bench_swiglu(tensors, warmup, iters):
-    """Op[5]: SwiGLU - silu(X2) * X1 for all 32 experts"""
-    token_indices = tensors["token_indices"]
-    # Pre-create G1 tensors for each expert
-    G1s = []
-    for le in range(E_LOCAL):
-        Tk = token_indices[le].numel()
-        if Tk == 0:
-            G1s.append(None)
-        else:
-            G1s.append(torch.randn(Tk, 2 * I, device="cuda", dtype=torch.float32))
-
-    def fn():
-        for le in range(E_LOCAL):
-            g1 = G1s[le]
-            if g1 is None:
-                continue
-            X1 = g1[:, :I]
-            X2 = g1[:, I:]
-            torch.nn.functional.silu(X2) * X1
-
-    flush_l2()
-    us = gpu_timer(fn, warmup=warmup, iters=iters)
-
-    total_tokens = sum(idx.numel() for idx in token_indices)
-    bytes_in = total_tokens * 2 * I * 4
-    bytes_out = total_tokens * I * 4
-    flops = total_tokens * I * 5  # silu=3ops + mul + mul
-    return us, bytes_in, bytes_out, flops
-
-
-def bench_gemm2(tensors, warmup, iters):
-    """Op[6]: GEMM2 - C @ W2_e.T for all 32 experts"""
-    W2 = tensors["W2"]
-    token_indices = tensors["token_indices"]
-    # Pre-create C tensors
-    Cs = []
-    for le in range(E_LOCAL):
-        Tk = token_indices[le].numel()
-        if Tk == 0:
-            Cs.append(None)
-        else:
-            Cs.append(torch.randn(Tk, I, device="cuda", dtype=torch.float32))
-
-    def fn():
-        for le in range(E_LOCAL):
-            c = Cs[le]
-            if c is None:
-                continue
-            W2_e = W2[le]
-            c.matmul(W2_e.t())
-
-    flush_l2()
-    us = gpu_timer(fn, warmup=warmup, iters=iters)
-
-    total_tokens = sum(idx.numel() for idx in token_indices)
-    bytes_in = total_tokens * I * 4 + E_LOCAL * H * I * 4
-    bytes_out = total_tokens * H * 4
-    flops = total_tokens * 2 * I * H
-    return us, bytes_in, bytes_out, flops
-
-
-def bench_weighted_accum(tensors, warmup, iters):
-    """Op[7]: WeightedAccum - output.index_add_ for all 32 experts"""
-    T = tensors["routing_logits"].shape[0]
-    weights = tensors["weights"]
-    token_indices = tensors["token_indices"]
-    # Pre-create O tensors
-    Os = []
-    for le in range(E_LOCAL):
-        Tk = token_indices[le].numel()
-        if Tk == 0:
-            Os.append(None)
-        else:
-            Os.append(torch.randn(Tk, H, device="cuda", dtype=torch.float32))
-
-    def fn():
-        output = torch.zeros(T, H, dtype=torch.float32, device="cuda")
-        for le in range(E_LOCAL):
-            o = Os[le]
-            if o is None:
-                continue
-            ge = le  # local_expert_offset=0
-            idx = token_indices[le]
-            w_tok = weights.index_select(0, idx)[:, ge]
-            output.index_add_(0, idx, o * w_tok.unsqueeze(1))
-        return output
-
-    flush_l2()
-    us = gpu_timer(fn, warmup=warmup, iters=iters)
-
-    total_tokens = sum(idx.numel() for idx in token_indices)
-    bytes_in = total_tokens * H * 4 + T * E_GLOBAL * 4 + T * H * 4  # O + weights + output(RMW)
-    bytes_out = T * H * 4
-    flops = total_tokens * H * 2  # mul + add
-    return us, bytes_in, bytes_out, flops
-
-
-# ---------------------------------------------------------------------------
-# Part 3: Memory-Only Baseline
-# ---------------------------------------------------------------------------
-
-def bench_memory_only(bytes_in, bytes_out, warmup=10, iters=50):
-    """Measure pure data movement cost for equivalent bytes."""
-    src = torch.empty(max(bytes_in, 1), dtype=torch.uint8, device="cuda")
-    dst = torch.empty(max(bytes_out, 1), dtype=torch.uint8, device="cuda")
-
-    def fn():
-        # Simulate read of bytes_in + write of bytes_out
-        _ = src.sum()  # force read from HBM
-        dst.zero_()    # force write to HBM
-
-    flush_l2()
-    us = gpu_timer(fn, warmup=warmup, iters=iters)
-
-    del src, dst
-    torch.cuda.empty_cache()
-    return us
-
-
-# ---------------------------------------------------------------------------
-# Part 4: Main
-# ---------------------------------------------------------------------------
-
-OP_NAMES = [
-    "DequantA", "DequantW13", "DequantW2", "Routing",
-    "GEMM1", "SwiGLU", "GEMM2", "WeightedAccum",
-]
-
-OP_TYPES = [
-    "Pointwise", "Pointwise", "Pointwise", "Pointwise",
-    "MatMul", "Pointwise", "MatMul", "Pointwise",
+# MoE-relevant aspect ratios: (M, N, K)
+# Typical MoE shapes: small M (tokens per expert), large N and K (hidden dims)
+GEMM_SIZES_MOE = [
+    (1, 4096, 7168),      # T=1 per expert, GEMM1-like
+    (4, 4096, 7168),
+    (16, 4096, 7168),
+    (64, 4096, 7168),
+    (256, 4096, 7168),
+    (1, 7168, 2048),      # T=1 per expert, GEMM2-like
+    (16, 7168, 2048),
+    (64, 7168, 2048),
+    (256, 7168, 2048),
 ]
 
 
-def fmt_bytes(b):
-    if b >= 1e9:
-        return f"{b / 1e9:.1f}GB"
-    elif b >= 1e6:
-        return f"{b / 1e6:.1f}MB"
-    else:
-        return f"{b / 1e3:.1f}KB"
+def bench_fp8_gemm(warmup, iters):
+    """Measure FP8 tensor core GEMM throughput at various sizes."""
+    print("  FP8 GEMM:")
+    measurements = []
+
+    # Square matrices
+    for N in GEMM_SIZES_SQUARE:
+        try:
+            a = torch.randn(N, N, device="cuda", dtype=torch.bfloat16).to(torch.float8_e4m3fn)
+            b = torch.randn(N, N, device="cuda", dtype=torch.bfloat16).to(torch.float8_e4m3fn)
+            sa = torch.tensor(1.0, device="cuda", dtype=torch.float32)
+            sb = torch.tensor(1.0, device="cuda", dtype=torch.float32)
+
+            def fn():
+                torch._scaled_mm(a, b.t(), scale_a=sa, scale_b=sb, out_dtype=torch.bfloat16)
+
+            us = gpu_timer(fn, warmup=warmup, iters=iters)
+            flops = 2 * N * N * N
+            tflops = flops / (us * 1e-6) / 1e12
+            measurements.append({
+                "shape": f"{N}x{N}x{N}",
+                "M": N, "N": N, "K": N,
+                "flops": flops,
+                "latency_us": round(us, 3),
+                "tflops": round(tflops, 1),
+            })
+            print(f"    {N:>5}x{N:<5}: {us:>10.1f} us  {tflops:>8.1f} TFLOPS")
+            del a, b, sa, sb
+            torch.cuda.empty_cache()
+        except Exception as e:
+            print(f"    {N:>5}x{N:<5}: ERROR - {e}")
+
+    # MoE-shaped matrices
+    print("  FP8 GEMM (MoE shapes):")
+    for M, NN, K in GEMM_SIZES_MOE:
+        try:
+            a = torch.randn(M, K, device="cuda", dtype=torch.bfloat16).to(torch.float8_e4m3fn)
+            b = torch.randn(NN, K, device="cuda", dtype=torch.bfloat16).to(torch.float8_e4m3fn)
+            sa = torch.tensor(1.0, device="cuda", dtype=torch.float32)
+            sb = torch.tensor(1.0, device="cuda", dtype=torch.float32)
+
+            def fn():
+                torch._scaled_mm(a, b.t(), scale_a=sa, scale_b=sb, out_dtype=torch.bfloat16)
+
+            us = gpu_timer(fn, warmup=warmup, iters=iters)
+            flops = 2 * M * NN * K
+            tflops = flops / (us * 1e-6) / 1e12
+            measurements.append({
+                "shape": f"{M}x{NN}x{K}",
+                "M": M, "N": NN, "K": K,
+                "flops": flops,
+                "latency_us": round(us, 3),
+                "tflops": round(tflops, 1),
+            })
+            print(f"    {M:>5}x{NN:>5}x{K:<5}: {us:>10.1f} us  {tflops:>8.1f} TFLOPS")
+            del a, b, sa, sb
+            torch.cuda.empty_cache()
+        except Exception as e:
+            print(f"    {M:>5}x{NN:>5}x{K:<5}: ERROR - {e}")
+
+    return measurements
 
 
-def fmt_flops(f):
-    if f >= 1e12:
-        return f"{f / 1e12:.1f}T"
-    elif f >= 1e9:
-        return f"{f / 1e9:.1f}G"
-    elif f >= 1e6:
-        return f"{f / 1e6:.1f}M"
-    else:
-        return f"{f:.0f}"
+def bench_bf16_gemm(warmup, iters):
+    """Measure BF16 tensor core GEMM throughput at various sizes."""
+    print("  BF16 GEMM:")
+    measurements = []
 
+    for N in GEMM_SIZES_SQUARE:
+        a = torch.randn(N, N, device="cuda", dtype=torch.bfloat16)
+        b = torch.randn(N, N, device="cuda", dtype=torch.bfloat16)
 
-BENCH_FNS = [
-    bench_dequant_a, bench_dequant_w13, bench_dequant_w2, bench_routing,
-    bench_gemm1, bench_swiglu, bench_gemm2, bench_weighted_accum,
-]
+        def fn():
+            torch.mm(a, b)
 
-
-def compute_roofline(bytes_in, bytes_out, flops, op_type, hw):
-    """Compute theoretical roofline times for an op given hardware measurements.
-
-    Returns (theoretical_mem_us, theoretical_compute_us, theoretical_best_us, theoretical_bound).
-    """
-    # HBM bandwidth in bytes/us = GB/s * 1e9 / 1e6 = GB/s * 1e3
-    hbm_bw = hw.get("hbm_bandwidth_GBps", 8000)  # GB/s
-    hbm_bytes_per_us = hbm_bw * 1e3  # bytes/us
-
-    total_bytes = bytes_in + bytes_out
-    theoretical_mem_us = total_bytes / hbm_bytes_per_us if hbm_bytes_per_us > 0 else 0
-
-    # Pick peak FLOPS based on op type
-    peak_flops = hw.get("peak_flops", {})
-    if op_type == "MatMul":
-        # Use FP8 if available, else BF16
-        if "fp8" in peak_flops and "tflops" in peak_flops["fp8"]:
-            tflops = peak_flops["fp8"]["tflops"]
-        elif "bf16" in peak_flops and "tflops" in peak_flops["bf16"]:
-            tflops = peak_flops["bf16"]["tflops"]
-        else:
-            tflops = 2250  # B200 BF16 fallback
-    else:
-        # Pointwise ops use FP32
-        if "fp32" in peak_flops and "tflops" in peak_flops["fp32"]:
-            tflops = peak_flops["fp32"]["tflops"]
-        else:
-            tflops = 1050  # B200 FP32 fallback
-
-    flops_per_us = tflops * 1e6  # TFLOPS * 1e12 / 1e6 = flops/us
-    theoretical_compute_us = flops / flops_per_us if flops_per_us > 0 else 0
-
-    theoretical_best_us = max(theoretical_mem_us, theoretical_compute_us)
-    theoretical_bound = "memory" if theoretical_mem_us >= theoretical_compute_us else "compute"
-
-    return (
-        round(theoretical_mem_us, 2),
-        round(theoretical_compute_us, 2),
-        round(theoretical_best_us, 2),
-        theoretical_bound,
-    )
-
-
-def benchmark_single_T(T, warmup, iters, hw=None, device="cuda"):
-    """Run all 8 op benchmarks for a single sequence length T. Returns (ops_results, base_costs)."""
-    if hw is None:
-        hw = {}
-    tensors = allocate_tensors(T, device=device)
-    torch.cuda.synchronize()
-
-    ops_results = []
-    base_costs = []
-
-    for i, (name, op_type, bench_fn) in enumerate(zip(OP_NAMES, OP_TYPES, BENCH_FNS)):
+        us = gpu_timer(fn, warmup=warmup, iters=iters)
+        flops = 2 * N * N * N
+        tflops = flops / (us * 1e-6) / 1e12
+        measurements.append({
+            "shape": f"{N}x{N}x{N}",
+            "M": N, "N": N, "K": N,
+            "flops": flops,
+            "latency_us": round(us, 3),
+            "tflops": round(tflops, 1),
+        })
+        print(f"    {N:>5}x{N:<5}: {us:>10.1f} us  {tflops:>8.1f} TFLOPS")
+        del a, b
         torch.cuda.empty_cache()
 
-        wall_us, bytes_in, bytes_out, flops = bench_fn(tensors, warmup, iters)
-        mem_us = bench_memory_only(bytes_in, bytes_out, warmup, iters)
+    return measurements
 
-        bound = "memory" if mem_us >= wall_us * 0.7 else "compute"
-        total_bytes = bytes_in + bytes_out
-        achieved_bw = total_bytes / (wall_us * 1e-6) / 1e9 if wall_us > 0 else 0
-        achieved_tflops = flops / (wall_us * 1e-6) / 1e12 if wall_us > 0 else 0
 
-        # Theoretical roofline
-        theo_mem, theo_comp, theo_best, theo_bound = compute_roofline(
-            bytes_in, bytes_out, flops, op_type, hw
-        )
+def bench_fp32_gemm(warmup, iters):
+    """Measure FP32 GEMM throughput at various sizes."""
+    print("  FP32 GEMM:")
+    measurements = []
 
-        ops_results.append({
-            "name": name,
-            "op_type": op_type,
-            "wall_clock_us": round(wall_us, 2),
-            "memory_only_us": round(mem_us, 2),
-            "theoretical_mem_us": theo_mem,
-            "theoretical_compute_us": theo_comp,
-            "theoretical_best_us": theo_best,
-            "theoretical_bound": theo_bound,
-            "bytes_in": bytes_in,
-            "bytes_out": bytes_out,
+    for N in GEMM_SIZES_SQUARE:
+        a = torch.randn(N, N, device="cuda", dtype=torch.float32)
+        b = torch.randn(N, N, device="cuda", dtype=torch.float32)
+
+        def fn():
+            torch.mm(a, b)
+
+        us = gpu_timer(fn, warmup=warmup, iters=iters)
+        flops = 2 * N * N * N
+        tflops = flops / (us * 1e-6) / 1e12
+        measurements.append({
+            "shape": f"{N}x{N}x{N}",
+            "M": N, "N": N, "K": N,
             "flops": flops,
-            "bound": bound,
-            "achieved_bandwidth_GBps": round(achieved_bw, 1),
-            "achieved_tflops": round(achieved_tflops, 3),
+            "latency_us": round(us, 3),
+            "tflops": round(tflops, 1),
         })
-        base_costs.append(round(theo_best, 2))
+        print(f"    {N:>5}x{N:<5}: {us:>10.1f} us  {tflops:>8.1f} TFLOPS")
+        del a, b
+        torch.cuda.empty_cache()
 
-    # Free tensors
-    del tensors
-    torch.cuda.empty_cache()
-
-    return ops_results, base_costs
+    return measurements
 
 
-def print_ops_table(T, ops_results, base_costs):
-    """Print a formatted table for one sequence length."""
-    header = (f"{'Op':<4} {'Name':<16} {'Type':<10} "
-              f"{'TheoMem':>10} {'TheoComp':>10} {'TheoBest':>10} {'TheoBound':<9} "
-              f"{'Wall(us)':>10} {'bytes_in':>10} {'bytes_out':>10} "
-              f"{'FLOPs':>12}")
-    print(f"\n--- T = {T} ---")
-    print(header)
-    print("-" * len(header))
-    for i, (r, name, op_type) in enumerate(zip(ops_results, OP_NAMES, OP_TYPES)):
-        print(f"{i:<4} {name:<16} {op_type:<10} "
-              f"{r['theoretical_mem_us']:>10.1f} {r['theoretical_compute_us']:>10.1f} "
-              f"{r['theoretical_best_us']:>10.1f} {r['theoretical_bound']:<9} "
-              f"{r['wall_clock_us']:>10.1f} "
-              f"{fmt_bytes(r['bytes_in']):>10} {fmt_bytes(r['bytes_out']):>10} "
-              f"{fmt_flops(r['flops']):>12}")
-    theo_total = sum(r['theoretical_best_us'] for r in ops_results)
-    print(f"Theoretical best total: {theo_total:.1f} us  |  Measured total: {sum(r['wall_clock_us'] for r in ops_results):.1f} us\n")
+def bench_fp32_pointwise(warmup, iters):
+    """Measure FP32 pointwise throughput (SwiGLU-like: silu(x) * y)."""
+    print("  FP32 Pointwise (silu(x)*y):")
+    sizes = [1_000, 10_000, 100_000, 1_000_000, 10_000_000, 50_000_000, 100_000_000]
+    measurements = []
+
+    for n in sizes:
+        x = torch.randn(n, device="cuda", dtype=torch.float32)
+        y = torch.randn(n, device="cuda", dtype=torch.float32)
+
+        def fn():
+            torch.nn.functional.silu(x) * y
+
+        us = gpu_timer(fn, warmup=warmup, iters=iters)
+        # silu = x * sigmoid(x) = 3 ops, then * y = 1 op, total ~4 FLOPs/element
+        # bytes: read 2*n*4 + write n*4 = 12n bytes
+        flops = 4 * n
+        total_bytes = 12 * n
+        tflops = flops / (us * 1e-6) / 1e12
+        bw_gbps = total_bytes / (us * 1e-6) / 1e9
+
+        measurements.append({
+            "elements": n,
+            "flops": flops,
+            "total_bytes": total_bytes,
+            "latency_us": round(us, 3),
+            "tflops": round(tflops, 4),
+            "achieved_bw_GBps": round(bw_gbps, 1),
+        })
+        print(f"    {n:>12,} elem: {us:>10.1f} us  {tflops:>8.4f} TFLOPS  {bw_gbps:>8.1f} GB/s")
+
+        del x, y
+        torch.cuda.empty_cache()
+
+    return measurements
 
 
-def load_workload_seq_lens(jsonl_path):
-    """Extract sorted unique seq_len values from a workload JSONL file."""
-    seq_lens = []
-    with open(jsonl_path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            d = json.loads(line)
-            seq_lens.append(d["workload"]["axes"]["seq_len"])
-    return sorted(set(seq_lens))
+def benchmark_compute(warmup, iters):
+    """Run all compute benchmarks."""
+    print("\n" + "=" * 70)
+    print("Part 2: Compute Latency")
+    print("=" * 70)
 
+    fp8_gemm = bench_fp8_gemm(warmup, iters)
+    bf16_gemm = bench_bf16_gemm(warmup, iters)
+    fp32_gemm = bench_fp32_gemm(warmup, iters)
+    fp32_pw = bench_fp32_pointwise(warmup, iters)
+
+    # Extract peaks
+    fp8_peak = max((m["tflops"] for m in fp8_gemm), default=0)
+    bf16_peak = max((m["tflops"] for m in bf16_gemm), default=0)
+    fp32_gemm_peak = max((m["tflops"] for m in fp32_gemm), default=0)
+    fp32_peak = max((m["tflops"] for m in fp32_pw), default=0)
+    pw_peak_bw = max((m["achieved_bw_GBps"] for m in fp32_pw), default=0)
+
+    # Find saturation threshold (first size to reach 80% of peak)
+    def find_saturation(measurements, key="tflops"):
+        peak = max(m[key] for m in measurements)
+        for m in measurements:
+            if m[key] >= 0.8 * peak:
+                return m.get("flops", m.get("elements", 0))
+        return measurements[-1].get("flops", 0)
+
+    fp8_sat = find_saturation(fp8_gemm) if fp8_gemm else 0
+    bf16_sat = find_saturation(bf16_gemm) if bf16_gemm else 0
+    fp32_gemm_sat = find_saturation(fp32_gemm) if fp32_gemm else 0
+
+    print(f"\n  Peak throughput:")
+    print(f"    FP8 GEMM:       {fp8_peak:.1f} TFLOPS (saturates at {fp8_sat:.0e} FLOPs)")
+    print(f"    BF16 GEMM:      {bf16_peak:.1f} TFLOPS (saturates at {bf16_sat:.0e} FLOPs)")
+    print(f"    FP32 GEMM:      {fp32_gemm_peak:.1f} TFLOPS (saturates at {fp32_gemm_sat:.0e} FLOPs)")
+    print(f"    FP32 Pointwise: {fp32_peak:.4f} TFLOPS (BW-limited at {pw_peak_bw:.0f} GB/s)")
+
+    return {
+        "fp8_gemm": {
+            "peak_tflops": fp8_peak,
+            "saturation_threshold_flops": fp8_sat,
+            "measurements": fp8_gemm,
+        },
+        "bf16_gemm": {
+            "peak_tflops": bf16_peak,
+            "saturation_threshold_flops": bf16_sat,
+            "measurements": bf16_gemm,
+        },
+        "fp32_gemm": {
+            "peak_tflops": fp32_gemm_peak,
+            "saturation_threshold_flops": fp32_gemm_sat,
+            "measurements": fp32_gemm,
+        },
+        "fp32_pointwise": {
+            "peak_tflops": fp32_peak,
+            "peak_bandwidth_GBps": pw_peak_bw,
+            "measurements": fp32_pw,
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Part 3: Kernel Launch Overhead
+# ---------------------------------------------------------------------------
+
+def benchmark_launch_overhead(warmup=200, iters=2000):
+    """Measure kernel launch overhead with trivial ops."""
+    print("\n" + "=" * 70)
+    print("Part 3: Kernel Launch Overhead")
+    print("=" * 70)
+
+    x = torch.tensor(1.0, device="cuda")
+
+    def fn():
+        x + x
+
+    us = gpu_timer(fn, warmup=warmup, iters=iters)
+    print(f"  Trivial op (scalar add): {us:.2f} us")
+
+    # Also measure with a small tensor to see if there's size-dependent overhead
+    y = torch.ones(256, device="cuda")
+
+    def fn2():
+        y + y
+
+    us2 = gpu_timer(fn2, warmup=warmup, iters=iters)
+    print(f"  Small op (256-element add): {us2:.2f} us")
+
+    overhead = min(us, us2)
+    print(f"  Launch overhead estimate: {overhead:.2f} us")
+
+    return {
+        "scalar_add_us": round(us, 2),
+        "small_vector_add_us": round(us2, 2),
+        "estimated_overhead_us": round(overhead, 2),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Benchmark MoE DAG ops on GPU")
-    parser.add_argument("--T", type=int, default=None,
-                        help="Single sequence length to benchmark")
-    parser.add_argument("--workloads", type=str, default=None,
-                        help="Path to workload JSONL file (benchmarks all seq_lens)")
+    parser = argparse.ArgumentParser(description="Hardware Cost Primitives Benchmark")
     parser.add_argument("--warmup", type=int, default=10, help="Warmup iterations")
-    parser.add_argument("--iters", type=int, default=100, help="Measurement iterations")
+    parser.add_argument("--iters", type=int, default=50, help="Measurement iterations")
     parser.add_argument("--output", type=str, default=None, help="Output JSON path")
-    parser.add_argument("--skip-hw", action="store_true",
-                        help="Skip hardware characterization")
     args = parser.parse_args()
 
     device = "cuda"
     assert torch.cuda.is_available(), "CUDA not available"
     torch.cuda.set_device(0)
 
-    # Determine sequence lengths to benchmark
-    if args.workloads:
-        seq_lens = load_workload_seq_lens(args.workloads)
-        print(f"Loaded {len(seq_lens)} sequence lengths from workload file:")
-        print(f"  {seq_lens}")
-        if args.output is None:
-            args.output = os.path.join(os.path.dirname(__file__), "dag_costs_all.json")
-    elif args.T is not None:
-        seq_lens = [args.T]
-        if args.output is None:
-            args.output = os.path.join(os.path.dirname(__file__), "dag_costs.json")
-    else:
-        # Default
-        seq_lens = [4096]
-        if args.output is None:
-            args.output = os.path.join(os.path.dirname(__file__), "dag_costs.json")
+    gpu_name = torch.cuda.get_device_name(0)
+    print(f"GPU: {gpu_name}")
+    print(f"CUDA: {torch.version.cuda}")
+    print(f"PyTorch: {torch.__version__}")
 
-    # Part 1: Hardware characterization
-    if not args.skip_hw:
-        hw = hardware_characterization(args.warmup, args.iters)
-    else:
-        hw = {"gpu_name": torch.cuda.get_device_name(0), "skipped": True}
+    # Run all benchmarks
+    data_movement = benchmark_data_movement(args.warmup, args.iters)
+    compute = benchmark_compute(args.warmup, args.iters)
+    launch = benchmark_launch_overhead()
 
-    # Part 2+3: Per-op benchmarks for each sequence length
-    all_results = []
+    # Assemble output
+    output = {
+        "gpu": gpu_name,
+        "cuda_version": torch.version.cuda,
+        "pytorch_version": torch.__version__,
+        "config": {"warmup": args.warmup, "iters": args.iters},
+        "data_movement": data_movement,
+        "compute": compute,
+        "kernel_launch_overhead": launch,
+    }
 
-    for idx, T in enumerate(seq_lens):
-        print("=" * 70)
-        print(f"[{idx + 1}/{len(seq_lens)}] Benchmarking T={T}")
-        print("=" * 70)
+    # Print cost model summary
+    copy_bw = data_movement["hbm_copy"]["peak_bandwidth_GBps"]
+    fp8_peak = compute["fp8_gemm"]["peak_tflops"]
+    overhead = launch["estimated_overhead_us"]
 
-        try:
-            ops_results, base_costs = benchmark_single_T(
-                T, args.warmup, args.iters, hw=hw, device=device
-            )
-            print_ops_table(T, ops_results, base_costs)
-
-            measured_costs = [round(op["wall_clock_us"], 2) for op in ops_results]
-            all_results.append({
-                "T": T,
-                "config": {"T": T, "H": H, "I": I, "E_local": E_LOCAL, "E_global": E_GLOBAL},
-                "ops": ops_results,
-                "base_costs": base_costs,  # theoretical roofline
-                "measured_costs": measured_costs,
-            })
-        except Exception as e:
-            print(f"  ERROR for T={T}: {e}")
-            all_results.append({"T": T, "error": str(e)})
+    print("\n" + "=" * 70)
+    print("COST MODEL SUMMARY")
+    print("=" * 70)
+    print(f"  For any fused kernel:")
+    print(f"    cost_us = max(total_bytes / {copy_bw:.0f}e3, flops / {fp8_peak:.0f}e6) + N_kernels * {overhead:.1f}")
+    print(f"")
+    print(f"  Where:")
+    print(f"    total_bytes = bytes read from HBM + bytes written to HBM")
+    print(f"    flops = total FLOPs (use FP8 rate for GEMMs, FP32 rate for pointwise)")
+    print(f"    N_kernels = number of separate kernel launches")
 
     # Write JSON
-    if len(seq_lens) == 1:
-        output_data = {
-            "hardware": hw,
-            **all_results[0],
-        }
-    else:
-        output_data = {
-            "hardware": hw,
-            "workloads": all_results,
-        }
+    if args.output is None:
+        args.output = os.path.join(os.path.dirname(__file__), "hw_cost_primitives.json")
 
     with open(args.output, "w") as f:
-        json.dump(output_data, f, indent=2)
+        json.dump(output, f, indent=2)
     print(f"\nResults written to: {args.output}")
-
-    # Print compact summary across all T values
-    if len(seq_lens) > 1:
-        print("\n" + "=" * 70)
-        print("SUMMARY: Theoretical best (roofline) per sequence length (us)")
-        print("=" * 70)
-        header = f"{'T':>8}  {'TheoBest':>10}  {'Measured':>10}  " + "  ".join(f"{n:>10}" for n in OP_NAMES)
-        print(header)
-        print("-" * len(header))
-        for r in all_results:
-            if "error" in r:
-                print(f"{r['T']:>8}  {'ERROR':>10}")
-            else:
-                theo_total = sum(r["base_costs"])
-                measured_total = sum(op["wall_clock_us"] for op in r["ops"])
-                costs_str = "  ".join(f"{c:>10.1f}" for c in r["base_costs"])
-                print(f"{r['T']:>8}  {theo_total:>10.1f}  {measured_total:>10.1f}  {costs_str}")
 
 
 if __name__ == "__main__":

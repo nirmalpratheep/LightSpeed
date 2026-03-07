@@ -1,0 +1,602 @@
+{
+  "gpu": "NVIDIA B200",
+  "cuda_version": "12.8",
+  "pytorch_version": "2.10.0+cu128",
+  "config": {
+    "warmup": 10,
+    "iters": 50
+  },
+  "data_movement": {
+    "hbm_read": {
+      "alpha_us": 15.1,
+      "peak_bandwidth_GBps": 3325.6,
+      "measurements": [
+        {
+          "bytes": 1024,
+          "latency_us": 17.84,
+          "bandwidth_GBps": 0.1
+        },
+        {
+          "bytes": 4096,
+          "latency_us": 17.584,
+          "bandwidth_GBps": 0.5
+        },
+        {
+          "bytes": 16384,
+          "latency_us": 16.272,
+          "bandwidth_GBps": 2.0
+        },
+        {
+          "bytes": 65536,
+          "latency_us": 15.76,
+          "bandwidth_GBps": 8.3
+        },
+        {
+          "bytes": 262144,
+          "latency_us": 17.168,
+          "bandwidth_GBps": 30.5
+        },
+        {
+          "bytes": 1048576,
+          "latency_us": 17.904,
+          "bandwidth_GBps": 117.1
+        },
+        {
+          "bytes": 4194304,
+          "latency_us": 17.584,
+          "bandwidth_GBps": 477.1
+        },
+        {
+          "bytes": 16777216,
+          "latency_us": 18.032,
+          "bandwidth_GBps": 1860.8
+        },
+        {
+          "bytes": 67108864,
+          "latency_us": 34.4,
+          "bandwidth_GBps": 3901.7
+        },
+        {
+          "bytes": 268435456,
+          "latency_us": 94.752,
+          "bandwidth_GBps": 5666.1
+        },
+        {
+          "bytes": 1073741824,
+          "latency_us": 338.32,
+          "bandwidth_GBps": 6347.5
+        }
+      ]
+    },
+    "hbm_write": {
+      "alpha_us": 11.856,
+      "peak_bandwidth_GBps": 7741.1,
+      "measurements": [
+        {
+          "bytes": 1024,
+          "latency_us": 13.424,
+          "bandwidth_GBps": 0.1
+        },
+        {
+          "bytes": 4096,
+          "latency_us": 14.944,
+          "bandwidth_GBps": 0.3
+        },
+        {
+          "bytes": 16384,
+          "latency_us": 13.488,
+          "bandwidth_GBps": 1.2
+        },
+        {
+          "bytes": 65536,
+          "latency_us": 15.808,
+          "bandwidth_GBps": 4.1
+        },
+        {
+          "bytes": 262144,
+          "latency_us": 16.064,
+          "bandwidth_GBps": 16.3
+        },
+        {
+          "bytes": 1048576,
+          "latency_us": 13.696,
+          "bandwidth_GBps": 76.6
+        },
+        {
+          "bytes": 4194304,
+          "latency_us": 13.152,
+          "bandwidth_GBps": 318.9
+        },
+        {
+          "bytes": 16777216,
+          "latency_us": 15.264,
+          "bandwidth_GBps": 1099.1
+        },
+        {
+          "bytes": 67108864,
+          "latency_us": 18.848,
+          "bandwidth_GBps": 3560.5
+        },
+        {
+          "bytes": 268435456,
+          "latency_us": 43.728,
+          "bandwidth_GBps": 6138.8
+        },
+        {
+          "bytes": 1073741824,
+          "latency_us": 151.344,
+          "bandwidth_GBps": 7094.7
+        }
+      ]
+    },
+    "hbm_copy": {
+      "alpha_us": 13.144,
+      "peak_bandwidth_GBps": 3312.0,
+      "measurements": [
+        {
+          "bytes": 1024,
+          "latency_us": 14.032,
+          "bandwidth_GBps": 0.1
+        },
+        {
+          "bytes": 4096,
+          "latency_us": 15.392,
+          "bandwidth_GBps": 0.5
+        },
+        {
+          "bytes": 16384,
+          "latency_us": 13.968,
+          "bandwidth_GBps": 2.3
+        },
+        {
+          "bytes": 65536,
+          "latency_us": 15.616,
+          "bandwidth_GBps": 8.4
+        },
+        {
+          "bytes": 262144,
+          "latency_us": 14.208,
+          "bandwidth_GBps": 36.9
+        },
+        {
+          "bytes": 1048576,
+          "latency_us": 16.128,
+          "bandwidth_GBps": 130.0
+        },
+        {
+          "bytes": 4194304,
+          "latency_us": 16.096,
+          "bandwidth_GBps": 521.2
+        },
+        {
+          "bytes": 16777216,
+          "latency_us": 16.416,
+          "bandwidth_GBps": 2044.0
+        },
+        {
+          "bytes": 67108864,
+          "latency_us": 32.448,
+          "bandwidth_GBps": 4136.4
+        },
+        {
+          "bytes": 268435456,
+          "latency_us": 91.952,
+          "bandwidth_GBps": 5838.6
+        },
+        {
+          "bytes": 1073741824,
+          "latency_us": 337.984,
+          "bandwidth_GBps": 6353.8
+        }
+      ]
+    },
+    "l2_warm": {
+      "alpha_us": 14.19,
+      "peak_bandwidth_GBps": 3899.4,
+      "measurements": [
+        {
+          "bytes": 1024,
+          "latency_us": 15.936,
+          "bandwidth_GBps": 0.1
+        },
+        {
+          "bytes": 4096,
+          "latency_us": 17.568,
+          "bandwidth_GBps": 0.5
+        },
+        {
+          "bytes": 16384,
+          "latency_us": 15.632,
+          "bandwidth_GBps": 2.1
+        },
+        {
+          "bytes": 65536,
+          "latency_us": 17.232,
+          "bandwidth_GBps": 7.6
+        },
+        {
+          "bytes": 262144,
+          "latency_us": 15.488,
+          "bandwidth_GBps": 33.9
+        },
+        {
+          "bytes": 1048576,
+          "latency_us": 15.664,
+          "bandwidth_GBps": 133.9
+        },
+        {
+          "bytes": 4194304,
+          "latency_us": 16.096,
+          "bandwidth_GBps": 521.2
+        },
+        {
+          "bytes": 16777216,
+          "latency_us": 15.872,
+          "bandwidth_GBps": 2114.1
+        },
+        {
+          "bytes": 67108864,
+          "latency_us": 31.984,
+          "bandwidth_GBps": 4196.4
+        }
+      ]
+    }
+  },
+  "compute": {
+    "fp8_gemm": {
+      "peak_tflops": 3121.9,
+      "saturation_threshold_flops": 1099511627776,
+      "measurements": [
+        {
+          "shape": "128x128x128",
+          "M": 128,
+          "N": 128,
+          "K": 128,
+          "flops": 4194304,
+          "latency_us": 28.096,
+          "tflops": 0.1
+        },
+        {
+          "shape": "256x256x256",
+          "M": 256,
+          "N": 256,
+          "K": 256,
+          "flops": 33554432,
+          "latency_us": 26.176,
+          "tflops": 1.3
+        },
+        {
+          "shape": "512x512x512",
+          "M": 512,
+          "N": 512,
+          "K": 512,
+          "flops": 268435456,
+          "latency_us": 28.16,
+          "tflops": 9.5
+        },
+        {
+          "shape": "1024x1024x1024",
+          "M": 1024,
+          "N": 1024,
+          "K": 1024,
+          "flops": 2147483648,
+          "latency_us": 28.064,
+          "tflops": 76.5
+        },
+        {
+          "shape": "2048x2048x2048",
+          "M": 2048,
+          "N": 2048,
+          "K": 2048,
+          "flops": 17179869184,
+          "latency_us": 27.056,
+          "tflops": 635.0
+        },
+        {
+          "shape": "4096x4096x4096",
+          "M": 4096,
+          "N": 4096,
+          "K": 4096,
+          "flops": 137438953472,
+          "latency_us": 68.736,
+          "tflops": 1999.5
+        },
+        {
+          "shape": "8192x8192x8192",
+          "M": 8192,
+          "N": 8192,
+          "K": 8192,
+          "flops": 1099511627776,
+          "latency_us": 352.192,
+          "tflops": 3121.9
+        },
+        {
+          "shape": "1x4096x7168",
+          "M": 1,
+          "N": 4096,
+          "K": 7168,
+          "flops": 58720256,
+          "latency_us": 29.168,
+          "tflops": 2.0
+        },
+        {
+          "shape": "4x4096x7168",
+          "M": 4,
+          "N": 4096,
+          "K": 7168,
+          "flops": 234881024,
+          "latency_us": 30.096,
+          "tflops": 7.8
+        },
+        {
+          "shape": "16x4096x7168",
+          "M": 16,
+          "N": 4096,
+          "K": 7168,
+          "flops": 939524096,
+          "latency_us": 28.144,
+          "tflops": 33.4
+        },
+        {
+          "shape": "64x4096x7168",
+          "M": 64,
+          "N": 4096,
+          "K": 7168,
+          "flops": 3758096384,
+          "latency_us": 25.76,
+          "tflops": 145.9
+        },
+        {
+          "shape": "256x4096x7168",
+          "M": 256,
+          "N": 4096,
+          "K": 7168,
+          "flops": 15032385536,
+          "latency_us": 28.128,
+          "tflops": 534.4
+        },
+        {
+          "shape": "1x7168x2048",
+          "M": 1,
+          "N": 7168,
+          "K": 2048,
+          "flops": 29360128,
+          "latency_us": 27.872,
+          "tflops": 1.1
+        },
+        {
+          "shape": "16x7168x2048",
+          "M": 16,
+          "N": 7168,
+          "K": 2048,
+          "flops": 469762048,
+          "latency_us": 26.096,
+          "tflops": 18.0
+        },
+        {
+          "shape": "64x7168x2048",
+          "M": 64,
+          "N": 7168,
+          "K": 2048,
+          "flops": 1879048192,
+          "latency_us": 28.096,
+          "tflops": 66.9
+        },
+        {
+          "shape": "256x7168x2048",
+          "M": 256,
+          "N": 7168,
+          "K": 2048,
+          "flops": 7516192768,
+          "latency_us": 26.608,
+          "tflops": 282.5
+        }
+      ]
+    },
+    "bf16_gemm": {
+      "peak_tflops": 1650.4,
+      "saturation_threshold_flops": 137438953472,
+      "measurements": [
+        {
+          "shape": "128x128x128",
+          "M": 128,
+          "N": 128,
+          "K": 128,
+          "flops": 4194304,
+          "latency_us": 21.328,
+          "tflops": 0.2
+        },
+        {
+          "shape": "256x256x256",
+          "M": 256,
+          "N": 256,
+          "K": 256,
+          "flops": 33554432,
+          "latency_us": 21.456,
+          "tflops": 1.6
+        },
+        {
+          "shape": "512x512x512",
+          "M": 512,
+          "N": 512,
+          "K": 512,
+          "flops": 268435456,
+          "latency_us": 21.712,
+          "tflops": 12.4
+        },
+        {
+          "shape": "1024x1024x1024",
+          "M": 1024,
+          "N": 1024,
+          "K": 1024,
+          "flops": 2147483648,
+          "latency_us": 21.632,
+          "tflops": 99.3
+        },
+        {
+          "shape": "2048x2048x2048",
+          "M": 2048,
+          "N": 2048,
+          "K": 2048,
+          "flops": 17179869184,
+          "latency_us": 27.424,
+          "tflops": 626.5
+        },
+        {
+          "shape": "4096x4096x4096",
+          "M": 4096,
+          "N": 4096,
+          "K": 4096,
+          "flops": 137438953472,
+          "latency_us": 99.92,
+          "tflops": 1375.5
+        },
+        {
+          "shape": "8192x8192x8192",
+          "M": 8192,
+          "N": 8192,
+          "K": 8192,
+          "flops": 1099511627776,
+          "latency_us": 666.192,
+          "tflops": 1650.4
+        }
+      ]
+    },
+    "fp32_gemm": {
+      "peak_tflops": 63.9,
+      "saturation_threshold_flops": 17179869184,
+      "measurements": [
+        {
+          "shape": "128x128x128",
+          "M": 128,
+          "N": 128,
+          "K": 128,
+          "flops": 4194304,
+          "latency_us": 21.632,
+          "tflops": 0.2
+        },
+        {
+          "shape": "256x256x256",
+          "M": 256,
+          "N": 256,
+          "K": 256,
+          "flops": 33554432,
+          "latency_us": 21.632,
+          "tflops": 1.6
+        },
+        {
+          "shape": "512x512x512",
+          "M": 512,
+          "N": 512,
+          "K": 512,
+          "flops": 268435456,
+          "latency_us": 25.552,
+          "tflops": 10.5
+        },
+        {
+          "shape": "1024x1024x1024",
+          "M": 1024,
+          "N": 1024,
+          "K": 1024,
+          "flops": 2147483648,
+          "latency_us": 64.112,
+          "tflops": 33.5
+        },
+        {
+          "shape": "2048x2048x2048",
+          "M": 2048,
+          "N": 2048,
+          "K": 2048,
+          "flops": 17179869184,
+          "latency_us": 330.512,
+          "tflops": 52.0
+        },
+        {
+          "shape": "4096x4096x4096",
+          "M": 4096,
+          "N": 4096,
+          "K": 4096,
+          "flops": 137438953472,
+          "latency_us": 2190.976,
+          "tflops": 62.7
+        },
+        {
+          "shape": "8192x8192x8192",
+          "M": 8192,
+          "N": 8192,
+          "K": 8192,
+          "flops": 1099511627776,
+          "latency_us": 17218.512,
+          "tflops": 63.9
+        }
+      ]
+    },
+    "fp32_pointwise": {
+      "peak_tflops": 1.3362,
+      "peak_bandwidth_GBps": 4008.6,
+      "measurements": [
+        {
+          "elements": 1000,
+          "flops": 4000,
+          "total_bytes": 12000,
+          "latency_us": 23.904,
+          "tflops": 0.0002,
+          "achieved_bw_GBps": 0.5
+        },
+        {
+          "elements": 10000,
+          "flops": 40000,
+          "total_bytes": 120000,
+          "latency_us": 23.744,
+          "tflops": 0.0017,
+          "achieved_bw_GBps": 5.1
+        },
+        {
+          "elements": 100000,
+          "flops": 400000,
+          "total_bytes": 1200000,
+          "latency_us": 23.616,
+          "tflops": 0.0169,
+          "achieved_bw_GBps": 50.8
+        },
+        {
+          "elements": 1000000,
+          "flops": 4000000,
+          "total_bytes": 12000000,
+          "latency_us": 23.52,
+          "tflops": 0.1701,
+          "achieved_bw_GBps": 510.2
+        },
+        {
+          "elements": 10000000,
+          "flops": 40000000,
+          "total_bytes": 120000000,
+          "latency_us": 37.104,
+          "tflops": 1.0781,
+          "achieved_bw_GBps": 3234.2
+        },
+        {
+          "elements": 50000000,
+          "flops": 200000000,
+          "total_bytes": 600000000,
+          "latency_us": 157.952,
+          "tflops": 1.2662,
+          "achieved_bw_GBps": 3798.6
+        },
+        {
+          "elements": 100000000,
+          "flops": 400000000,
+          "total_bytes": 1200000000,
+          "latency_us": 299.36,
+          "tflops": 1.3362,
+          "achieved_bw_GBps": 4008.6
+        }
+      ]
+    }
+  },
+  "kernel_launch_overhead": {
+    "scalar_add_us": 15.78,
+    "small_vector_add_us": 14.18,
+    "estimated_overhead_us": 14.18
+  }
+}
