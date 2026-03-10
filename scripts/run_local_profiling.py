@@ -48,6 +48,10 @@ def _find_tool(name: str) -> str:
     ]
     for pattern in search_patterns:
         matches = sorted(glob.glob(pattern, recursive=True))
+        # Prefer x64 binaries over ARM64
+        x64 = [m for m in matches if "x64" in m or "x86" in m]
+        if x64:
+            return x64[-1]
         if matches:
             return matches[-1]
 
@@ -112,13 +116,10 @@ def run_ncu(
         cmd = [
             ncu_bin,
             "-f",
-            "--set", "full",
+            "--set", "default",
             "--target-processes", "all",
             "--import-source", "yes",
-            "--section", "SpeedOfLight",
-            "--section", "MemoryWorkloadAnalysis",
-            "--section", "ComputeWorkloadAnalysis",
-            "--section", "Occupancy",
+            "--nvtx", "--nvtx-include", "MOE_KERNEL/",
             "-o", rep_path,
             sys.executable, "-u", "-m",
             "flashinfer_bench.agents._solution_runner",

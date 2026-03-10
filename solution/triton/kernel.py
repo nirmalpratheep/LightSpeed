@@ -456,8 +456,11 @@ if USE_FP8_TRITON:
         seq_len = routing_logits.shape[0]
         device = routing_logits.device
 
+        # ── ROUTING ──
+        torch.cuda.nvtx.range_push("ROUTING")
         stids, seids, swts, eoffs = deepseek_v3_routing(
             routing_logits, routing_bias, local_expert_offset, routed_scaling_factor)
+        torch.cuda.nvtx.range_pop()
 
         T = stids.shape[0]
         output.zero_()
@@ -475,11 +478,16 @@ if USE_FP8_TRITON:
         # 2 waves of SMs keeps hardware busy; capped at total_tiles to avoid idle CTAs.
         GRID_MULT = 2
 
-        # ── Fused GEMM1+SwiGLU: [T_sorted, HIDDEN] → [T_sorted, INTER] ──
+        # ── TILE_MAP_GEMM1 ──
+        torch.cuda.nvtx.range_push("TILE_MAP_GEMM1")
         tm1 = build_tile_map_gpu(eoffs, GEMM1_OUT_SIZE, BM, BN_G1, device)
+        torch.cuda.nvtx.range_pop()
+
+        # ── GEMM1+SwiGLU: [T_sorted, HIDDEN] → [T_sorted, INTER] ──
         act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
         if tm1.shape[0] > 0:
             grid1 = min(_NUM_SMS * GRID_MULT, tm1.shape[0])
+            torch.cuda.nvtx.range_push("GEMM1_SWIGLU")
             _gemm1_swiglu_kernel[(grid1,)](
                 hidden_states, hidden_states_scale, stids,
                 gemm1_weights, gemm1_weights_scale,
@@ -500,12 +508,18 @@ if USE_FP8_TRITON:
                 stride_bs_k=gemm1_weights_scale.stride(2),
                 BLOCK_M=BM, BLOCK_K=BK, HALF_N=BN_G1 // 2, FP8_BLK=BLOCK,
                 num_warps=8, num_stages=3)
+            torch.cuda.nvtx.range_pop()
+
+        # ── TILE_MAP_GEMM2 ──
+        torch.cuda.nvtx.range_push("TILE_MAP_GEMM2")
+        tm2 = build_tile_map_gpu(eoffs, HIDDEN_SIZE, BM, BN_G2, device)
+        torch.cuda.nvtx.range_pop()
 
         # ── GEMM2: [T_sorted, INTER] → [T_sorted, HIDDEN] ──
-        tm2 = build_tile_map_gpu(eoffs, HIDDEN_SIZE, BM, BN_G2, device)
         g2o = torch.empty(T, HIDDEN_SIZE, dtype=torch.float32, device=device)
         if tm2.shape[0] > 0:
             grid2 = min(_NUM_SMS * GRID_MULT, tm2.shape[0])
+            torch.cuda.nvtx.range_push("GEMM2")
             _gemm2_kernel[(grid2,)](
                 act_fp32, gemm2_weights, gemm2_weights_scale,
                 tm2, tm2.shape[0], g2o,
@@ -523,16 +537,23 @@ if USE_FP8_TRITON:
                 stride_bs_k=gemm2_weights_scale.stride(2),
                 BLOCK_M=BM, BLOCK_N=BN_G2, BLOCK_K=BK, FP8_BLK=BLOCK,
                 num_warps=8, num_stages=3)
+            torch.cuda.nvtx.range_pop()
         del act_fp32
 
-        # ── Weighted reduce → output ──
+        # ── BUILD_ASSIGN_IDX ──
+        torch.cuda.nvtx.range_push("BUILD_ASSIGN_IDX")
         ao, ts, tc = _build_assign_idx(stids, seq_len, device)
+        torch.cuda.nvtx.range_pop()
+
+        # ── REDUCE ──
         BLOCK_H = 128
         nhb = math.ceil(HIDDEN_SIZE / BLOCK_H)
+        torch.cuda.nvtx.range_push("REDUCE")
         _reduce_kernel[(seq_len, nhb)](
             g2o, stids, swts, ts, tc, ao, output,
             seq_len=seq_len, hidden_size=HIDDEN_SIZE,
             BLOCK_H=BLOCK_H)
+        torch.cuda.nvtx.range_pop()
         del g2o
         return output
 
@@ -564,13 +585,16 @@ def kernel(
         output = torch.zeros(seq_len, HIDDEN_SIZE, dtype=torch.bfloat16,
                              device=routing_logits.device)
 
+    torch.cuda.nvtx.range_push("MOE_KERNEL")
     if USE_FP8_TRITON:
-        return kernel_triton(
+        result = kernel_triton(
             routing_logits, routing_bias, hidden_states, hidden_states_scale,
             gemm1_weights, gemm1_weights_scale, gemm2_weights, gemm2_weights_scale,
             local_expert_offset, routed_scaling_factor, output)
     else:
-        return kernel_pytorch(
+        result = kernel_pytorch(
             routing_logits, routing_bias, hidden_states, hidden_states_scale,
             gemm1_weights, gemm1_weights_scale, gemm2_weights, gemm2_weights_scale,
             local_expert_offset, routed_scaling_factor, output)
+    torch.cuda.nvtx.range_pop()
+    return result
