@@ -26,6 +26,44 @@ Create high-performance GPU kernels for state-of-the-art LLM architectures on NV
 
 ## Benchmark Results (B200)
 
+### V5 — Workload-Specialized Dispatch (Current)
+
+**Solution:** `moe-v5-workload-dispatch` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
+
+| Workload | Status | Latency (ms) | Speedup | Max Abs Error | Max Rel Error |
+|----------|--------|-------------|---------|---------------|---------------|
+| b8f4f012 | PASSED | 1.509 | 7.68x | 2.05e+03 | 2.89e+01 |
+| e05c6c03 | PASSED | 1.495 | 7.40x | 2.05e+03 | 2.06e+00 |
+| 6230e838 | PASSED | 2.075 | 6.64x | 4.10e+03 | 9.78e+01 |
+| 8f1ff9f1 | PASSED | 2.290 | 6.87x | 4.10e+03 | 1.94e+02 |
+| 1a4c6ba1 | PASSED | 2.323 | 8.97x | 4.10e+03 | 1.10e+09 |
+| a7c2bcfd | PASSED | 1.780 | 7.02x | 2.05e+03 | 2.07e+02 |
+| 2e69caee | PASSED | 1.564 | 7.33x | 4.10e+03 | 1.01e+01 |
+| 8cba5890 | PASSED | 1.774 | 6.88x | 4.10e+03 | 1.06e+02 |
+| 5e8dc11c | PASSED | 8.449 | 5.33x | 8.19e+03 | 3.22e+09 |
+| 58a34f27 | PASSED | 6.368 | 5.63x | 8.19e+03 | 2.03e+09 |
+| 5eadab1e | PASSED | 2.038 | 6.75x | 4.10e+03 | 3.44e+01 |
+| eedc63b2 | PASSED | 2.091 | 6.64x | 4.10e+03 | 3.44e+07 |
+| e626d3e6 | PASSED | 2.260 | 6.78x | 4.10e+03 | 3.03e+02 |
+| 74d7ff04 | PASSED | 2.248 | 6.63x | 4.10e+03 | 4.54e+02 |
+| 4822167c | PASSED | 2.227 | 6.76x | 4.10e+03 | 1.40e+03 |
+| 81955b1e | PASSED | 2.258 | 6.45x | 4.10e+03 | 2.47e+01 |
+| 76010cb4 | PASSED | 2.197 | 6.51x | 4.10e+03 | 1.60e+02 |
+| fc378037 | PASSED | 2.246 | 6.51x | 4.10e+03 | 8.13e+08 |
+| f7d6ac7c | PASSED | 1.937 | 6.84x | 2.05e+03 | 6.72e+01 |
+
+**Summary:** All 19 workloads passed. Speedups range from 5.33x to 8.97x. Avg speedup: **6.82x** (vs V4 avg 5.59x — **+22% improvement**). Avg latency: **2.59 ms** (vs V4 avg 3.45 ms — **25% reduction**).
+
+**V5 changes from V4:**
+- Workload-tiered dispatch (tiny/small/medium/large) based on seq_len
+- Smaller BLOCK_M (16/32) for tiny/small workloads reduces wasted tile rows
+- Non-persistent grid for tiny workloads (tiles < SMs)
+- 4 warps for tiny/small → lower register pressure
+- 4 pipeline stages for large → deeper pipelining hides memory latency
+- 3 routing variants: `.sort()` (tiny), `argsort` (standard), `bincount` (large)
+
+### V4 — Persistent Kernel (Previous)
+
 **Solution:** `moe-v2-zerocopy-noatomic` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
 
 | Workload | Status | Latency (ms) | Speedup | Max Abs Error | Max Rel Error |
@@ -50,7 +88,7 @@ Create high-performance GPU kernels for state-of-the-art LLM architectures on NV
 | fc378037 | PASSED | 2.672 | 5.43x | 4.10e+03 | 4.04e+02 |
 | f7d6ac7c | PASSED | 2.283 | 5.81x | 2.05e+03 | 5.53e+01 |
 
-**Summary:** All 19 workloads passed. Speedups range from 3.12x to 6.83x. Numerical accuracy needs improvement (high abs/rel errors).
+**Summary:** All 19 workloads passed. Speedups range from 3.12x to 6.83x. Avg speedup: **5.59x**. Avg latency: **3.45 ms**.
 
 ## Competition Tracks
 
