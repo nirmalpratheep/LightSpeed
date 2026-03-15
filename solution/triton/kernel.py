@@ -344,6 +344,33 @@ if USE_FP8_TRITON:
             if k >= count:
                 tl.store(out_eids_ptr + out_base + k, NUM_LOCAL)
 
+    @triton.jit
+    def _counting_sort_kernel(
+        in_tids_ptr, in_eids_ptr, in_wts_ptr,
+        out_tids_ptr, out_eids_ptr, out_wts_ptr,
+        expert_offsets_ptr,   # cumsum from expert_hist, [NUM_LOCAL+1] int32
+        expert_ctr_ptr,       # per-expert atomic counter (starts at 0), [NUM_LOCAL] int32
+        SEQ_LEN: tl.constexpr,
+        TOP_K: tl.constexpr,
+        NUM_LOCAL: tl.constexpr,
+    ):
+        """Scatter unsorted routing output to expert-sorted positions.
+        One CTA per token; each token writes its local experts to the correct bucket.
+        Uses atomic_add on per-expert counter to get unique write positions.
+        Result: sorted by expert_id without any general sort."""
+        tok = tl.program_id(0)
+        in_base = tok * TOP_K
+        for k in tl.static_range(TOP_K):
+            eid = tl.load(in_eids_ptr + in_base + k)
+            if eid < NUM_LOCAL:
+                # Get write position within this expert's bucket
+                pos = tl.atomic_add(expert_ctr_ptr + eid, 1)
+                # Absolute write position = expert_offset[eid] + pos
+                off = tl.load(expert_offsets_ptr + eid) + pos
+                tl.store(out_tids_ptr + off, tl.load(in_tids_ptr + in_base + k))
+                tl.store(out_eids_ptr + off, eid.to(tl.int32))
+                tl.store(out_wts_ptr  + off, tl.load(in_wts_ptr + in_base + k))
+
     def routing_fused(routing_logits, routing_bias, local_expert_offset,
                       routed_scaling_factor):
         """Fused routing: single Triton kernel + argsort.
@@ -378,10 +405,6 @@ if USE_FP8_TRITON:
             num_warps=1,  # 32 threads for 256 experts (8 elements per thread)
         )
 
-        # Sort by expert id. Invalid slots have eid=NUM_LOCAL_EXPERTS (sort to end).
-        sort_idx = torch.argsort(out_eids, stable=True)
-        sorted_eids_full = out_eids[sort_idx]
-
         # Expert offsets from histogram (no bincount needed — we have expert_hist)
         eo = torch.zeros(NUM_LOCAL_EXPERTS + 1, dtype=torch.int32, device=device)
         eo[1:] = expert_hist.cumsum(0)
@@ -392,9 +415,81 @@ if USE_FP8_TRITON:
             empty = torch.zeros(0, dtype=torch.int32, device=device)
             return empty, empty, torch.zeros(0, dtype=torch.float32, device=device), eo
 
-        sorted_tids = out_tids[sort_idx[:T]].int()
-        sorted_eids = sorted_eids_full[:T].int()
-        sorted_wts  = out_wts[sort_idx[:T]]
+        # Counting sort: scatter unsorted slots into expert-sorted positions
+        # Faster than argsort for all T since it replaces a sort with atomic scatter
+        sorted_tids = torch.empty(T, dtype=torch.int32, device=device)
+        sorted_eids = torch.empty(T, dtype=torch.int32, device=device)
+        sorted_wts  = torch.empty(T, dtype=torch.float32, device=device)
+        expert_ctr  = torch.zeros(NUM_LOCAL_EXPERTS, dtype=torch.int32, device=device)
+
+        _counting_sort_kernel[(seq_len,)](
+            out_tids, out_eids, out_wts,
+            sorted_tids, sorted_eids, sorted_wts,
+            eo, expert_ctr,
+            SEQ_LEN=seq_len, TOP_K=TOP_K, NUM_LOCAL=NUM_LOCAL_EXPERTS,
+            num_warps=1,
+        )
+
+        return sorted_tids, sorted_eids, sorted_wts, eo
+
+    def routing_fused_large(routing_logits, routing_bias, local_expert_offset,
+                            routed_scaling_factor):
+        """Fused routing for large tier: uses counting sort instead of argsort.
+        Avoids sorting 95K+ elements. Two Triton kernel launches instead of argsort.
+        Phase 1: _fused_routing_kernel — assignments + histogram (atomic).
+        Phase 2: cumsum for expert offsets (GPU).
+        Phase 3: _counting_sort_kernel — scatter to sorted positions (atomic per-expert).
+        """
+        seq_len  = routing_logits.shape[0]
+        device   = routing_logits.device
+        local_start = int(local_expert_offset)
+        local_end   = local_start + NUM_LOCAL_EXPERTS
+
+        # Pre-allocate unsorted output (at most TOP_K local assignments per token)
+        total_slots = seq_len * TOP_K
+        out_tids  = torch.empty(total_slots, dtype=torch.int32, device=device)
+        out_eids  = torch.empty(total_slots, dtype=torch.int32, device=device)
+        out_wts   = torch.empty(total_slots, dtype=torch.float32, device=device)
+        expert_hist = torch.zeros(NUM_LOCAL_EXPERTS, dtype=torch.int32, device=device)
+
+        _fused_routing_kernel[(seq_len,)](
+            routing_logits, routing_bias,
+            out_tids, out_eids, out_wts, expert_hist,
+            local_start=local_start, local_end=local_end,
+            routed_scaling_factor=float(routed_scaling_factor),
+            stride_logit_row=routing_logits.stride(0),
+            SEQ_LEN=seq_len,
+            NUM_EXPERTS=NUM_EXPERTS, N_GROUP=N_GROUP,
+            GROUP_SIZE=NUM_EXPERTS // N_GROUP,
+            TOPK_GROUP=TOPK_GROUP, TOP_K=TOP_K, MAX_OUT=TOP_K,
+            NUM_LOCAL=NUM_LOCAL_EXPERTS,
+            num_warps=1,
+        )
+
+        # Build expert offsets from histogram (GPU cumsum, no CPU sync yet)
+        eo = torch.zeros(NUM_LOCAL_EXPERTS + 1, dtype=torch.int32, device=device)
+        eo[1:] = expert_hist.cumsum(0)
+
+        T = int(eo[-1].item())  # one unavoidable sync
+
+        if T == 0:
+            empty = torch.zeros(0, dtype=torch.int32, device=device)
+            return empty, empty, torch.zeros(0, dtype=torch.float32, device=device), eo
+
+        # Counting sort: scatter unsorted slots into expert-sorted positions
+        # Much faster than argsort on 95K+ elements for large T
+        sorted_tids = torch.empty(T, dtype=torch.int32, device=device)
+        sorted_eids = torch.empty(T, dtype=torch.int32, device=device)
+        sorted_wts  = torch.empty(T, dtype=torch.float32, device=device)
+        expert_ctr  = torch.zeros(NUM_LOCAL_EXPERTS, dtype=torch.int32, device=device)
+
+        _counting_sort_kernel[(seq_len,)](
+            out_tids, out_eids, out_wts,
+            sorted_tids, sorted_eids, sorted_wts,
+            eo, expert_ctr,
+            SEQ_LEN=seq_len, TOP_K=TOP_K, NUM_LOCAL=NUM_LOCAL_EXPERTS,
+            num_warps=1,
+        )
 
         return sorted_tids, sorted_eids, sorted_wts, eo
 
@@ -508,17 +603,52 @@ if USE_FP8_TRITON:
             eids_exp, e_starts[eids_exp], M_es[eids_exp], pm_exp, pn_exp,
         ], dim=1)
 
+    @triton.jit
+    def _build_assign_idx_kernel(
+        sorted_tids_ptr, reorder_ptr, tc_ptr, ts_ptr,
+        T, SEQ_LEN,
+        BLOCK: tl.constexpr,
+    ):
+        """Counting sort for _build_assign_idx: replaces argsort.
+        Each CTA handles BLOCK slots. Uses atomic_add per token for write positions.
+        tc_ptr has size SEQ_LEN+1 — slot SEQ_LEN is a scratch slot for masked lanes,
+        so spurious atomics on masked lanes don't corrupt valid token counters."""
+        pid = tl.program_id(0)
+        offs = pid * BLOCK + tl.arange(0, BLOCK)
+        mask = offs < T
+        tok = tl.load(sorted_tids_ptr + offs, mask=mask, other=0).to(tl.int32)
+        atomic_slot = tl.where(mask, tok, SEQ_LEN)
+        pos = tl.atomic_add(tc_ptr + atomic_slot, 1)
+        start = tl.load(ts_ptr + tok, mask=mask, other=0).to(tl.int32)
+        dst = start + pos
+        tl.store(reorder_ptr + dst, offs.to(tl.int32), mask=mask)
+
     def _build_assign_idx(sorted_token_ids, seq_len, device):
         T = sorted_token_ids.shape[0]
-        reorder = torch.argsort(sorted_token_ids.long(), stable=True)
+        if T == 0:
+            empty_int = torch.zeros(0, dtype=torch.int32, device=device)
+            tc = torch.zeros(seq_len, dtype=torch.int32, device=device)
+            ts = torch.zeros(seq_len, dtype=torch.int32, device=device)
+            return empty_int, ts, tc
+        # Build tc (count per token) via scatter_add
         tc = torch.zeros(seq_len, dtype=torch.int32, device=device)
-        if T > 0:
-            tc.scatter_add_(0, sorted_token_ids.long(),
-                            torch.ones(T, dtype=torch.int32, device=device))
+        tc.scatter_add_(0, sorted_token_ids.long(),
+                        torch.ones(T, dtype=torch.int32, device=device))
+        # Build ts (start per token) via cumsum
         ts = torch.zeros(seq_len, dtype=torch.int32, device=device)
         if seq_len > 1:
             ts[1:] = tc[:-1].cumsum(0)
-        return reorder.int(), ts, tc
+        # Counting sort kernel: tc_ctr[SEQ_LEN] is scratch for masked lanes
+        # After kernel, tc_ctr[:seq_len] == tc[:seq_len] (same counts)
+        reorder = torch.empty(T, dtype=torch.int32, device=device)
+        tc_ctr = torch.zeros(seq_len + 1, dtype=torch.int32, device=device)
+        BSORT = 256
+        grid_sort = (T + BSORT - 1) // BSORT
+        _build_assign_idx_kernel[(grid_sort,)](
+            sorted_token_ids, reorder, tc_ctr, ts,
+            T=T, SEQ_LEN=seq_len, BLOCK=BSORT,
+        )
+        return reorder, ts, tc
 
     # ───────────────────────────────────────────────────────────
     # Triton JIT kernels (shared across all workload tiers)
@@ -698,6 +828,9 @@ if USE_FP8_TRITON:
     # Launch helpers (avoid code duplication across tiers)
     # ───────────────────────────────────────────────────────────
 
+    # Secondary CUDA stream for overlapping tile-map2 build with GEMM1 execution
+    _stream2 = torch.cuda.Stream() if torch.cuda.is_available() else None
+
     def _launch_gemm1(hidden_states, hidden_states_scale, stids,
                       gemm1_weights, gemm1_weights_scale,
                       eoffs, T, BM, BK, BN_G1, warps, stages, grid_mult, device):
@@ -732,10 +865,85 @@ if USE_FP8_TRITON:
                 num_warps=warps, num_stages=stages)
         return act_fp32
 
+    def _launch_gemm1_prefetch_tm2(hidden_states, hidden_states_scale, stids,
+                                   gemm1_weights, gemm1_weights_scale,
+                                   eoffs, T, BM1, BK1, BN_G1, warps1, stages1, grid_mult1,
+                                   BM2, BN2, BK2, warps2, stages2, grid_mult2, device):
+        """Launch GEMM1 on default stream while building GEMM2 tile-map on stream2.
+        Returns (act_fp32, tm2) — tm2 is ready when stream2 is synced."""
+        # Build GEMM1 tile map on default stream
+        tm1 = build_tile_map_gpu(eoffs, GEMM1_OUT_SIZE, BM1, BN_G1, device)
+        act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
+
+        # Launch GEMM2 tile-map build on stream2 (concurrent with GEMM1)
+        cur_stream = torch.cuda.current_stream()
+        _stream2.wait_stream(cur_stream)  # stream2 starts after routing is done
+        with torch.cuda.stream(_stream2):
+            tm2 = build_tile_map_gpu(eoffs, HIDDEN_SIZE, BM2, BN2, device)
+
+        # Launch GEMM1 on default stream (runs concurrently with tile-map build above)
+        if tm1.shape[0] > 0:
+            if grid_mult1 == 0:
+                grid1 = tm1.shape[0]
+            else:
+                grid1 = min(_NUM_SMS * grid_mult1, tm1.shape[0])
+            _gemm1_swiglu_kernel[(grid1,)](
+                hidden_states, hidden_states_scale, stids,
+                gemm1_weights, gemm1_weights_scale,
+                tm1, tm1.shape[0], act_fp32,
+                N=GEMM1_OUT_SIZE, INTER=INTERMEDIATE_SIZE, K=HIDDEN_SIZE,
+                NUM_SMS=grid1,
+                stride_h_row=hidden_states.stride(0),
+                stride_h_col=hidden_states.stride(1),
+                stride_b_expert=gemm1_weights.stride(0),
+                stride_b_row=gemm1_weights.stride(1),
+                stride_b_col=gemm1_weights.stride(2),
+                stride_c_row=act_fp32.stride(0),
+                stride_c_col=act_fp32.stride(1),
+                stride_hs_block=hidden_states_scale.stride(0),
+                stride_hs_token=hidden_states_scale.stride(1),
+                stride_bs_expert=gemm1_weights_scale.stride(0),
+                stride_bs_n=gemm1_weights_scale.stride(1),
+                stride_bs_k=gemm1_weights_scale.stride(2),
+                BLOCK_M=BM1, BLOCK_K=BK1, HALF_N=BN_G1 // 2, FP8_BLK=BLOCK,
+                num_warps=warps1, num_stages=stages1)
+
+        # Sync stream2 (tm2 must be ready before GEMM2 launches)
+        cur_stream.wait_stream(_stream2)
+        return act_fp32, tm2
+
     def _launch_gemm2(act_fp32, gemm2_weights, gemm2_weights_scale,
                       eoffs, T, BM, BN, BK, warps, stages, grid_mult, device):
         """Launch GEMM2 with tier-specific tile config."""
         tm2 = build_tile_map_gpu(eoffs, HIDDEN_SIZE, BM, BN, device)
+        g2o = torch.empty(T, HIDDEN_SIZE, dtype=torch.float32, device=device)
+        if tm2.shape[0] > 0:
+            if grid_mult == 0:
+                grid2 = tm2.shape[0]
+            else:
+                grid2 = min(_NUM_SMS * grid_mult, tm2.shape[0])
+            _gemm2_kernel[(grid2,)](
+                act_fp32, gemm2_weights, gemm2_weights_scale,
+                tm2, tm2.shape[0], g2o,
+                N=HIDDEN_SIZE, K=INTERMEDIATE_SIZE,
+                NUM_SMS=grid2,
+                stride_a_row=act_fp32.stride(0),
+                stride_a_col=act_fp32.stride(1),
+                stride_b_expert=gemm2_weights.stride(0),
+                stride_b_row=gemm2_weights.stride(1),
+                stride_b_col=gemm2_weights.stride(2),
+                stride_o_row=g2o.stride(0),
+                stride_o_col=g2o.stride(1),
+                stride_bs_expert=gemm2_weights_scale.stride(0),
+                stride_bs_n=gemm2_weights_scale.stride(1),
+                stride_bs_k=gemm2_weights_scale.stride(2),
+                BLOCK_M=BM, BLOCK_N=BN, BLOCK_K=BK, FP8_BLK=BLOCK,
+                num_warps=warps, num_stages=stages)
+        return g2o
+
+    def _launch_gemm2_with_tm(act_fp32, gemm2_weights, gemm2_weights_scale,
+                               tm2, T, BM, BN, BK, warps, stages, grid_mult, device):
+        """Launch GEMM2 using a pre-built tile map (from _launch_gemm1_prefetch_tm2)."""
         g2o = torch.empty(T, HIDDEN_SIZE, dtype=torch.float32, device=device)
         if tm2.shape[0] > 0:
             if grid_mult == 0:
@@ -794,8 +1002,8 @@ if USE_FP8_TRITON:
         torch.cuda.nvtx.range_pop()
 
         T = stids.shape[0]
-        output.zero_()
         if T == 0:
+            output.zero_()
             return output
 
         # GEMM1+SwiGLU: BM=16, 4 warps, 2 stages, non-persistent (grid_mult=0)
@@ -843,8 +1051,8 @@ if USE_FP8_TRITON:
         torch.cuda.nvtx.range_pop()
 
         T = stids.shape[0]
-        output.zero_()
         if T == 0:
+            output.zero_()
             return output
 
         # GEMM1+SwiGLU: BM=32, 8 warps, 5 stages, light persistent (1× NUM_SMS)
@@ -892,8 +1100,8 @@ if USE_FP8_TRITON:
         torch.cuda.nvtx.range_pop()
 
         T = stids.shape[0]
-        output.zero_()
         if T == 0:
+            output.zero_()
             return output
 
         # GEMM1+SwiGLU: BM=64, 8 warps, 3 stages, full persistent (2× NUM_SMS)
@@ -933,21 +1141,22 @@ if USE_FP8_TRITON:
                             local_expert_offset, routed_scaling_factor, output):
         """Optimized for seq_len > 2048. 3 pipeline stages (smem hardware limit on B200).
         Uses bincount routing to avoid allocating ones tensor for 100K+ assignments.
-        BLOCK_H=256 reduce: 28 launch blocks vs 56 for fewer kernel launches."""
+        BLOCK_H=256 reduce: 28 launch blocks vs 56 for fewer kernel launches.
+        CUDA stream parallelism: GEMM2 tile-map built on stream2 while GEMM1 executes."""
         seq_len = routing_logits.shape[0]
         device = routing_logits.device
 
         torch.cuda.nvtx.range_push("ROUTE_LARGE")
-        stids, seids, swts, eoffs = routing_large(
+        stids, seids, swts, eoffs = routing_fused_large(
             routing_logits, routing_bias, local_expert_offset, routed_scaling_factor)
         torch.cuda.nvtx.range_pop()
 
         T = stids.shape[0]
-        output.zero_()
         if T == 0:
+            output.zero_()
             return output
 
-        # GEMM1+SwiGLU: BM=64, 8 warps, 3 stages (4 stages requires 245KB > B200's 232KB smem limit)
+        # GEMM1+SwiGLU: BM=64, 8 warps, 3 stages (BK=128, 4 stages = 245KB > B200 232KB smem limit)
         torch.cuda.nvtx.range_push("GEMM1_LARGE")
         act_fp32 = _launch_gemm1(
             hidden_states, hidden_states_scale, stids,
@@ -955,11 +1164,11 @@ if USE_FP8_TRITON:
             BM=64, BK=128, BN_G1=256, warps=8, stages=3, grid_mult=2, device=device)
         torch.cuda.nvtx.range_pop()
 
-        # GEMM2: BM=32 BK=64 stages=5 for large tier — smaller tile for more parallelism
+        # GEMM2: BM=32 BK=128 stages=6 for large tier (deeper pipeline)
         torch.cuda.nvtx.range_push("GEMM2_LARGE")
         g2o = _launch_gemm2(
             act_fp32, gemm2_weights, gemm2_weights_scale, eoffs, T,
-            BM=32, BN=128, BK=64, warps=8, stages=5, grid_mult=2, device=device)
+            BM=32, BN=128, BK=128, warps=8, stages=6, grid_mult=2, device=device)
         torch.cuda.nvtx.range_pop()
         del act_fp32
 
