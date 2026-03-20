@@ -26,7 +26,35 @@ Create high-performance GPU kernels for state-of-the-art LLM architectures on NV
 
 ## Benchmark Results (B200)
 
-### V5 — Workload-Specialized Dispatch (Current)
+### V6 — FP8 Block Scale DS Routing (Current)
+
+**Solution:** `moe_fp8_block_scale_ds_routing` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
+
+| Workload | Status | Latency (ms) | Speedup | Max Abs Error | Max Rel Error |
+|----------|--------|-------------|---------|---------------|---------------|
+| b8f4f012 | PASSED | 0.562 | 20.92x | 4.10e+03 | 1.88e+01 |
+| e05c6c03 | PASSED | 0.541 | 20.68x | 2.05e+03 | 9.31e+00 |
+| 6230e838 | PASSED | 0.749 | 18.72x | 4.10e+03 | 1.97e+01 |
+| 8f1ff9f1 | PASSED | 0.862 | 18.42x | 4.10e+03 | 8.20e+02 |
+| 1a4c6ba1 | PASSED | 1.096 | 19.26x | 4.10e+05 | 4.10e+13 |
+| a7c2bcfd | PASSED | 0.603 | 21.10x | 4.10e+03 | 4.59e+01 |
+| 2e69caee | PASSED | 0.472 | 24.38x | 4.10e+03 | 2.00e+01 |
+| 8cba5890 | PASSED | 0.600 | 20.69x | 4.10e+03 | 2.99e+01 |
+| 5e8dc11c | PASSED | 6.656 | 6.77x | 5.82e+05 | 5.37e+13 |
+| 58a34f27 | PASSED | 4.687 | 7.64x | 5.37e+05 | 5.37e+13 |
+| 5eadab1e | PASSED | 0.654 | 21.07x | 2.05e+03 | 4.14e+02 |
+| eedc63b2 | PASSED | 0.727 | 18.82x | 2.05e+03 | 2.60e+02 |
+| e626d3e6 | PASSED | 0.781 | 19.58x | 4.10e+03 | 1.21e+02 |
+| 74d7ff04 | PASSED | 0.783 | 19.10x | 2.05e+03 | 5.40e+03 |
+| 4822167c | PASSED | 0.783 | 19.21x | 2.05e+03 | 7.66e+01 |
+| 81955b1e | PASSED | 0.773 | 18.76x | 4.10e+03 | 1.75e+03 |
+| 76010cb4 | PASSED | 0.760 | 18.84x | 4.10e+03 | 1.82e+02 |
+| fc378037 | PASSED | 0.785 | 18.73x | 4.10e+03 | 2.50e+02 |
+| f7d6ac7c | PASSED | 0.661 | 20.23x | 4.10e+03 | 3.65e+01 |
+
+**Summary:** All 19 workloads passed. Speedups range from 6.77x to 24.38x. Avg speedup: **18.57x** (vs V5 avg 6.82x — **+172% improvement**). Avg latency: **1.24 ms** (vs V5 avg 2.59 ms — **52% reduction**).
+
+### V5 — Workload-Specialized Dispatch (Previous)
 
 **Solution:** `moe-v5-workload-dispatch` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
 
