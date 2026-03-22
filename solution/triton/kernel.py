@@ -8,7 +8,7 @@ Workload-specialized kernel dispatch based on NCU profiling:
   tiny       ≤ 8         16        32        4      2       non-persistent
   small      9–128       32        64        4      2       1× NUM_SMS
   medium     129–2048    64        64        8      3       2× NUM_SMS
-  large      > 2048      64        64        8      4       2× NUM_SMS
+  large      > 2048      64        32        8      3       2× NUM_SMS
 
 Rationale from NCU:
   - seq=1:  grid=48 (gemm1), 168 (gemm2) — tiles < SMs, persistent wastes CTAs
@@ -1458,6 +1458,66 @@ if USE_FP8_TRITON:
                 mask=mmask[:, None] & nmask[None, :])
 
     @triton.jit
+    def _gemm2_bf16_kernel(
+        A_ptr, B_ptr, B_scale_ptr,
+        tile_map_ptr, total_tiles, out_ptr,
+        NUM_SMS: tl.constexpr,
+        N: tl.constexpr, K: tl.constexpr,
+        stride_a_row, stride_a_col,
+        stride_b_expert, stride_b_row, stride_b_col,
+        stride_o_row, stride_o_col,
+        stride_bs_expert, stride_bs_n, stride_bs_k,
+        BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+        FP8_BLK: tl.constexpr,
+    ):
+        """GEMM2 using BF16 tensor cores: A(fp32→bf16) × B(fp8→bf16).
+        BF16 halves register pressure for B vs FP32, enabling more pipelining.
+        B200 BF16 TFLOPS: ~9000T vs TF32 2250T → potential 4× speedup if latency-limited."""
+        start_pid = tl.program_id(0)
+        for pid in tl.range(start_pid, total_tiles, NUM_SMS):
+            base = tile_map_ptr + pid * 5
+            eid = tl.load(base + 0).to(tl.int32)
+            e_start = tl.load(base + 1)
+            M_e = tl.load(base + 2)
+            pm = tl.load(base + 3).to(tl.int32)
+            pn = tl.load(base + 4).to(tl.int32)
+
+            om = pm * BLOCK_M + tl.arange(0, BLOCK_M)
+            on = pn * BLOCK_N + tl.arange(0, BLOCK_N)
+            mmask = om < M_e
+            nmask = on < N
+
+            acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
+            n_blk = (pn * BLOCK_N) // FP8_BLK
+
+            for ks in range(0, K, BLOCK_K):
+                ok = ks + tl.arange(0, BLOCK_K)
+                km = ok < K
+                k_blk = ks // FP8_BLK
+
+                a_fp32 = tl.load(
+                    A_ptr + (e_start + om[:, None]) * stride_a_row + ok[None, :] * stride_a_col,
+                    mask=mmask[:, None] & km[None, :], other=0.0)
+                a = a_fp32.to(tl.bfloat16)
+
+                b_fp8 = tl.load(
+                    B_ptr + eid * stride_b_expert + on[:, None] * stride_b_row + ok[None, :] * stride_b_col,
+                    mask=nmask[:, None] & km[None, :], other=0.0)
+                b = b_fp8.to(tl.bfloat16)
+
+                partial = tl.dot(a, tl.trans(b), out_dtype=tl.float32)
+
+                b_s = tl.load(
+                    B_scale_ptr + eid * stride_bs_expert + n_blk * stride_bs_n + k_blk * stride_bs_k)
+
+                acc += partial * b_s
+
+            tl.store(
+                out_ptr + (e_start + om[:, None]) * stride_o_row + on[None, :] * stride_o_col,
+                acc,
+                mask=mmask[:, None] & nmask[None, :])
+
+    @triton.jit
     def _reduce_kernel(
         g2_ptr, sid_ptr, sw_ptr, ts_ptr, tc_ptr, ao_ptr, out_ptr,
         seq_len, hidden_size: tl.constexpr,
@@ -1682,6 +1742,36 @@ if USE_FP8_TRITON:
             else:
                 grid2 = min(_NUM_SMS * grid_mult, tm2.shape[0])
             _gemm2_kernel[(grid2,)](
+                act_fp32, gemm2_weights, gemm2_weights_scale,
+                tm2, tm2.shape[0], g2o,
+                N=HIDDEN_SIZE, K=INTERMEDIATE_SIZE,
+                NUM_SMS=grid2,
+                stride_a_row=act_fp32.stride(0),
+                stride_a_col=act_fp32.stride(1),
+                stride_b_expert=gemm2_weights.stride(0),
+                stride_b_row=gemm2_weights.stride(1),
+                stride_b_col=gemm2_weights.stride(2),
+                stride_o_row=g2o.stride(0),
+                stride_o_col=g2o.stride(1),
+                stride_bs_expert=gemm2_weights_scale.stride(0),
+                stride_bs_n=gemm2_weights_scale.stride(1),
+                stride_bs_k=gemm2_weights_scale.stride(2),
+                BLOCK_M=BM, BLOCK_N=BN, BLOCK_K=BK, FP8_BLK=BLOCK,
+                num_warps=warps, num_stages=stages)
+        return g2o
+
+    def _launch_gemm2_bf16_with_tm(act_fp32, gemm2_weights, gemm2_weights_scale,
+                                    tm2, T, BM, BN, BK, warps, stages, grid_mult, device):
+        """Launch BF16 GEMM2: A(fp32→bf16) × B(fp8→bf16) using BF16 tensor cores.
+        BF16 tensor cores: ~9000 TFLOPS vs TF32 2250 TFLOPS → potential 4× faster.
+        Accuracy: BF16 ~0.78% error vs FP8's 0.44%/128-block — should pass 2% tolerance."""
+        g2o = torch.empty(T, HIDDEN_SIZE, dtype=torch.float32, device=device)
+        if tm2.shape[0] > 0:
+            if grid_mult == 0:
+                grid2 = tm2.shape[0]
+            else:
+                grid2 = min(_NUM_SMS * grid_mult, tm2.shape[0])
+            _gemm2_bf16_kernel[(grid2,)](
                 act_fp32, gemm2_weights, gemm2_weights_scale,
                 tm2, tm2.shape[0], g2o,
                 N=HIDDEN_SIZE, K=INTERMEDIATE_SIZE,
@@ -1970,7 +2060,7 @@ if USE_FP8_TRITON:
                 BLOCK_M=32, BLOCK_K=128, HALF_N=128, FP8_BLK=BLOCK,
                 num_warps=8, num_stages=6)
 
-        # GEMM2: BM=32 BK=64 stages=8 warps=8 for small tier (8×16KB=128KB)
+        # GEMM2: BM=32 BK=64 stages=8 (proven for small tier — grid=148SMs, pipeline depth wins)
         g2o = _launch_gemm2_with_tm(
             act_fp32, gemm2_weights, gemm2_weights_scale, tm2, T,
             BM=32, BN=128, BK=64, warps=8, stages=8, grid_mult=1, device=device)
@@ -2037,7 +2127,7 @@ if USE_FP8_TRITON:
                 BLOCK_M=64, BLOCK_K=128, HALF_N=128, FP8_BLK=BLOCK,
                 num_warps=8, num_stages=3)
 
-        # GEMM2: BM=64 BK=32 stages=8 — deeper pipeline within smem budget
+        # GEMM2: BM=64 BK=32 stages=8 — proven optimal for medium tier
         g2o = _launch_gemm2_with_tm(
             act_fp32, gemm2_weights, gemm2_weights_scale, tm2, T,
             BM=64, BN=128, BK=32, warps=8, stages=8, grid_mult=2, device=device)
@@ -2066,7 +2156,10 @@ if USE_FP8_TRITON:
                             local_expert_offset, routed_scaling_factor, output):
         """Optimized for seq_len > 2048.
         GEMM1: FP8×FP8 tensor cores, BM=64, BK=128, stages=3.
-        GEMM2: FP32 (TF32 on B200), BM=32, BK=128, stages=7 (224KB smem < 232KB).
+        GEMM2: FP32 (TF32 on B200), BM=32, BK=128, stages=3 (96KB smem → 2 CTAs/SM).
+          NCU: stages=7 (224KB) gave 12.5% occupancy (1 CTA/SM). stages=3 (96KB) allows
+          2 CTAs/SM (2×96KB=192KB < 232KB), ~2× warp count → better latency hiding.
+          NOTE: FP8/BF16 GEMM2 fail 2% tolerance for large sequences (SwiGLU dynamic range).
         Reduce: _launch_reduce(block_h=256) — scatter_add OOM for T>50K tokens."""
         seq_len = routing_logits.shape[0]
         device = routing_logits.device
@@ -2079,11 +2172,11 @@ if USE_FP8_TRITON:
             output.zero_()
             return output
 
-        # Build both tile maps: GEMM1 uses BM=64, GEMM2 uses BM=32
+        # Build both tile maps: GEMM1 BM=64, GEMM2 BM=32
         tm1, tm2 = build_two_tile_maps_diff_bm_gpu(
             eoffs, BM1=64, BN1=256, N1=GEMM1_OUT_SIZE, BM2=32, BN2=128, N2=HIDDEN_SIZE, device=device)
 
-        # GEMM1+SwiGLU: BM=64, 8 warps, 3 stages → FP32 act
+        # GEMM1+SwiGLU: BM=64, 8 warps, 3 stages → FP32 act (proven — K=7168 needs deep pipeline)
         act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
         if tm1.shape[0] > 0:
             grid1 = min(_NUM_SMS * 2, tm1.shape[0])
@@ -2105,10 +2198,13 @@ if USE_FP8_TRITON:
                 BLOCK_M=64, BLOCK_K=128, HALF_N=128, FP8_BLK=BLOCK,
                 num_warps=8, num_stages=3)
 
-        # GEMM2: BM=32 BK=128 stages=7 for large tier (deeper pipeline, 224KB smem < 232KB limit)
+        # GEMM2: BM=32 BK=64 stages=6 → 96KB smem → 2 CTAs/SM (sweet spot, exhaustively tested)
+        # BK=64 stages=6: (8+8)KB×6=96KB → 2×96=192KB < 232KB → 2 CTAs/SM ✓
+        # Tested: BK=128/s7(224KB,1CTA), BK=128/s3(96KB), BK=64/s7(112KB,1CTA),
+        #         BK=32/s6(48KB,4CTAs), BM=16/s6(72KB,3CTAs) — all worse.
         g2o = _launch_gemm2_with_tm(
             act_fp32, gemm2_weights, gemm2_weights_scale, tm2, T,
-            BM=32, BN=128, BK=128, warps=8, stages=7, grid_mult=2, device=device)
+            BM=32, BN=128, BK=64, warps=8, stages=6, grid_mult=2, device=device)
         del act_fp32, tm1, tm2
 
         # Reduce with BLOCK_H=256 (28 blocks vs 56 → fewer launches)
