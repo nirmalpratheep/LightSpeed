@@ -1,0 +1,5 @@
+round	tier	seq_len	uuid	lat_ms	speedup	sm_pct_gemm2	max_rel_err	status	description
+0	tiny	1	e05c6c03	0.541	20.68	30.0	9.31e+00	baseline	V6: FP8 GEMM1+GEMM2 tiny — NCU/mar27 sm_pct (FP32 GEMM2 unchanged)
+0	small	80	8f1ff9f1	0.862	18.42	?	8.20e+02	baseline	V6: FP8 GEMM1, FP32 GEMM2 small — no NCU data for small tier
+0	medium	901	1a4c6ba1	1.096	19.26	40.4	4.10e+13	baseline	V6: FP8 GEMM1+GEMM2 medium — sm_pct from NCU/mar27 pre-FP8 GEMM2
+0	large	14107	5e8dc11c	6.656	6.77	49.0	5.37e+13	baseline	V6: FP8 GEMM1+GEMM2 large — sm_pct from NCU/mar27 pre-FP8 GEMM2

@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LightSpeed — Kernel Optimization Dashboard</title>
+<style>
+:root {
+  --bg: #0d1117; --surface: #161b22; --surface2: #1c2128; --border: #30363d;
+  --text: #e6edf3; --muted: #8b949e; --green: #3fb950; --red: #f85149;
+  --yellow: #d29922; --blue: #58a6ff; --purple: #bc8cff; --orange: #ffa657;
+  --tiny: #58a6ff; --small: #3fb950; --medium: #d29922; --large: #f85149;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'SF Mono','Cascadia Code',monospace; font-size: 13px; }
+
+/* ── Header ── */
+header {
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+header h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+.badge { background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+         padding: 2px 9px; font-size: 11px; color: var(--muted); }
+.badge.green { border-color: var(--green); color: var(--green); }
+.badge.red   { border-color: var(--red);   color: var(--red);   }
+.ts { color: var(--muted); font-size: 11px; margin-left: auto; }
+.btn { background: var(--blue); color: #000; border: none; border-radius: 5px;
+       padding: 4px 12px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.btn:hover { opacity: 0.85; }
+.btn.sm { background: var(--surface); color: var(--muted); border: 1px solid var(--border); font-weight: 400; }
+.btn.sm:hover { border-color: var(--blue); color: var(--blue); }
+
+/* ── Tabs ── */
+.tab-bar { display: flex; border-bottom: 1px solid var(--border); padding: 0 20px; }
+.tab { padding: 10px 16px; cursor: pointer; font-size: 13px; color: var(--muted);
+       border-bottom: 2px solid transparent; transition: all .15s; user-select: none; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+/* ── Tab content ── */
+.tab-pane { display: none; padding: 16px 20px; }
+.tab-pane.active { display: block; }
+
+/* ── Grid helpers ── */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.full  { grid-column: 1 / -1; }
+
+/* ── Cards ── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.card h2 { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+           letter-spacing: .06em; margin-bottom: 12px; }
+.chart-wrap { position: relative; height: 180px; }
+
+/* ── Speedup tiles ── */
+.tile { background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 12px 14px; transition: border-color .2s; }
+.tile:hover { border-color: var(--muted); }
+.tile .t-label { font-size: 10px; color: var(--muted); margin-bottom: 2px; text-transform: uppercase; letter-spacing: .05em; }
+.tile .t-val   { font-size: 26px; font-weight: 700; line-height: 1; }
+.tile .t-lat   { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.tile .t-delta { font-size: 11px; margin-top: 2px; }
+.tile.tiny   .t-val { color: var(--tiny); }
+.tile.small  .t-val { color: var(--small); }
+.tile.medium .t-val { color: var(--medium); }
+.tile.large  .t-val { color: var(--large); }
+
+/* ── Tables ── */
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border);
+     color: var(--muted); font-size: 11px; font-weight: 400; white-space: nowrap; }
+td { padding: 5px 8px; border-bottom: 1px solid var(--border); font-size: 12px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,.02); }
+
+.tag { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 10px; font-weight: 700; }
+.tag.tiny   { background: #1b2a42; color: var(--tiny);   }
+.tag.small  { background: #142d1c; color: var(--small);  }
+.tag.medium { background: #2d2208; color: var(--medium); }
+.tag.large  { background: #2d1418; color: var(--large);  }
+.tag.pass   { background: #142d1c; color: var(--green);  }
+.tag.fail   { background: #2d1418; color: var(--red);    }
+
+.status-baseline { color: var(--blue); }
+.status-keep     { color: var(--green); }
+.status-discard  { color: var(--red); }
+.status-skip     { color: var(--muted); }
+
+/* ── Bar ── */
+.bar-wrap { display: flex; align-items: center; gap: 6px; min-width: 110px; }
+.bar-bg   { flex: 1; background: var(--border); border-radius: 3px; height: 5px; }
+.bar-fill { height: 5px; border-radius: 3px; }
+.c-good { color: var(--green); }
+.c-warn { color: var(--yellow); }
+.c-bad  { color: var(--red); }
+
+/* ── Experiment cards ── */
+.exp-list { display: flex; flex-direction: column; gap: 10px; }
+.exp-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.exp-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+              cursor: pointer; user-select: none; border-bottom: 1px solid transparent; }
+.exp-header:hover { background: var(--surface2); }
+.exp-header.open { border-bottom-color: var(--border); }
+.exp-round { font-weight: 700; font-size: 15px; min-width: 28px; }
+.exp-commit { font-size: 11px; color: var(--muted); }
+.exp-note   { flex: 1; color: var(--text); font-size: 12px; }
+.exp-ts     { font-size: 11px; color: var(--muted); }
+.exp-chevron { color: var(--muted); transition: transform .2s; }
+.exp-chevron.open { transform: rotate(90deg); }
+.exp-body { display: none; padding: 14px; }
+.exp-body.open { display: block; }
+.exp-body .grid2 { gap: 10px; }
+.notes-pre { background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+             padding: 10px; font-size: 11px; color: var(--muted); white-space: pre-wrap;
+             max-height: 200px; overflow-y: auto; }
+
+/* ── NCU heatmap ── */
+.hm-val { font-variant-numeric: tabular-nums; }
+
+/* ── Filter bar ── */
+.filter-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.filter-btn { padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border);
+              background: var(--surface2); color: var(--muted); cursor: pointer; font-size: 11px; font-family: inherit; }
+.filter-btn:hover  { border-color: var(--muted); color: var(--text); }
+.filter-btn.active { border-color: var(--blue); color: var(--blue); background: #1a2a3a; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <h1>⚡ LightSpeed — Kernel Dashboard</h1>
+  <span class="badge" id="hdr-rounds">0 experiments</span>
+  <span class="badge" id="hdr-commit">—</span>
+  <span class="badge green" id="hdr-best">best —</span>
+  <span class="ts" id="hdr-ts"></span>
+  <button class="btn" onclick="init()">↻ Reload</button>
+</header>
+
+<!-- ── Tab bar ── -->
+<div class="tab-bar">
+  <div class="tab active" onclick="switchTab('perf',this)">Performance</div>
+  <div class="tab" onclick="switchTab('ncu',this)">NCU Metrics</div>
+  <div class="tab" onclick="switchTab('exp',this)">Experiments</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     TAB 1 — Performance
+     ════════════════════════════════════════════════════════ -->
+<div id="tab-perf" class="tab-pane active">
+
+  <!-- Speedup tiles -->
+  <div class="grid4" style="margin-bottom:14px">
+    <div class="tile tiny">
+      <div class="t-label">TINY · seq=1</div>
+      <div class="t-val" id="tile-spd-tiny">—</div>
+      <div class="t-lat" id="tile-lat-tiny">—</div>
+      <div class="t-delta" id="tile-delta-tiny"></div>
+    </div>
+    <div class="tile small">
+      <div class="t-label">SMALL · seq=80</div>
+      <div class="t-val" id="tile-spd-small">—</div>
+      <div class="t-lat" id="tile-lat-small">—</div>
+      <div class="t-delta" id="tile-delta-small"></div>
+    </div>
+    <div class="tile medium">
+      <div class="t-label">MEDIUM · seq=901</div>
+      <div class="t-val" id="tile-spd-medium">—</div>
+      <div class="t-lat" id="tile-lat-medium">—</div>
+      <div class="t-delta" id="tile-delta-medium"></div>
+    </div>
+    <div class="tile large">
+      <div class="t-label">LARGE · seq=14107</div>
+      <div class="t-val" id="tile-spd-large">—</div>
+      <div class="t-lat" id="tile-lat-large">—</div>
+      <div class="t-delta" id="tile-delta-large"></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>Speedup vs Reference — all tiers over experiments</h2>
+      <div class="chart-wrap"><canvas id="chart-speedup"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Latency (ms) over experiments — lower is better</h2>
+      <div class="chart-wrap"><canvas id="chart-latency"></canvas></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     TAB 2 — NCU Metrics
+     ════════════════════════════════════════════════════════ -->
+<div id="tab-ncu" class="tab-pane">
+
+  <!-- 4 charts: one per metric, 4 tier lines each -->
+  <div class="grid2" style="margin-bottom:14px">
+    <div class="card">
+      <h2>SM Throughput % (GEMM2 kernel) — higher is better</h2>
+      <div class="chart-wrap"><canvas id="chart-sm"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>HBM Bandwidth % (GEMM2 kernel)</h2>
+      <div class="chart-wrap"><canvas id="chart-hbm"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>L1 Cache Hit % (GEMM2 kernel) — higher reduces HBM pressure</h2>
+      <div class="chart-wrap"><canvas id="chart-l1"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Warp Active % (GEMM2 kernel) — higher means better occupancy</h2>
+      <div class="chart-wrap"><canvas id="chart-warp"></canvas></div>
+    </div>
+  </div>
+
+  <!-- GEMM kernel duration chart -->
+  <div class="card" style="margin-bottom:14px">
+    <h2>GEMM2 Kernel Duration (μs) — lower is better</h2>
+    <div class="chart-wrap" style="height:160px"><canvas id="chart-dur"></canvas></div>
+  </div>
+
+  <!-- NCU metrics table (latest round) -->
+  <div class="card">
+    <h2>Latest NCU Metrics — all tracked kernels</h2>
+    <div style="overflow-x:auto">
+      <table id="ncu-table">
+        <thead>
+          <tr>
+            <th>Tier</th><th>Kernel</th>
+            <th>Duration (μs)</th>
+            <th>SM%</th><th>HBM%</th><th>L1 hit%</th><th>Warp%</th>
+          </tr>
+        </thead>
+        <tbody id="ncu-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     TAB 3 — Experiments
+     ════════════════════════════════════════════════════════ -->
+<div id="tab-exp" class="tab-pane">
+
+  <div class="filter-bar">
+    <span style="color:var(--muted);font-size:11px;align-self:center">Filter:</span>
+    <button class="filter-btn active" onclick="filterExp('all',this)">All</button>
+    <button class="filter-btn" onclick="filterExp('keep',this)">Keep</button>
+    <button class="filter-btn" onclick="filterExp('discard',this)">Discard</button>
+    <button class="filter-btn" onclick="filterExp('baseline',this)">Baseline</button>
+  </div>
+
+  <div class="exp-list" id="exp-list"></div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Data sidecar — regenerated by scripts/update_dashboard_data.py -->
+<script src="dashboard_data.js"></script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// Data helpers
+// ══════════════════════════════════════════════════════════════
+
+const TIERS = ['tiny','small','medium','large'];
+const TC = { tiny:'#58a6ff', small:'#3fb950', medium:'#d29922', large:'#f85149' };
+
+function getData() {
+  return (typeof window.EXPERIMENTS !== 'undefined') ? window.EXPERIMENTS : [];
+}
+
+function tierOf(seq) {
+  if (seq <= 8)    return 'tiny';
+  if (seq <= 128)  return 'small';
+  if (seq <= 2048) return 'medium';
+  return 'large';
+}
+
+// From a results.json workloads array, get the entry for a given tier
+function wlForTier(workloads, tier) {
+  return workloads.find(w => (w.tier || tierOf(w.seq)) === tier) || null;
+}
+
+// GEMM2 kernel row from ncu_metrics.json for a given tier
+function gemm2ForTier(ncu, tier) {
+  if (!ncu || !ncu.kernels) return null;
+  const kerns = ncu.kernels.filter(k => k.tier === tier);
+  // prefer fp8 then fallback to generic _gemm2_kernel
+  return kerns.find(k => k.kernel.includes('_gemm2_fp8')) ||
+         kerns.find(k => k.kernel.includes('_gemm2')) || null;
+}
+
+// ══════════════════════════════════════════════════════════════
+// Charts
+// ══════════════════════════════════════════════════════════════
+
+const charts = {};
+
+function makeChart(id, type, datasets, labels, yTitle, opts = {}) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(ctx, {
+    type,
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { labels: { color: '#8b949e', font: { family: 'monospace', size: 10 }, boxWidth: 10 } },
+        tooltip: { backgroundColor: '#1c2128', titleColor: '#e6edf3', bodyColor: '#8b949e',
+                   borderColor: '#30363d', borderWidth: 1 },
+      },
+      scales: {
+        x: { ticks: { color: '#8b949e', font: { size: 10 }, maxTicksLimit: 12 },
+             grid: { color: '#21262d' } },
+        y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' },
+             title: { display: !!yTitle, text: yTitle, color: '#8b949e', font: { size: 10 } },
+             ...opts },
+      },
+    },
+  });
+}
+
+function renderPerfCharts(exps) {
+  const labels = exps.map((e, i) => `#${e.config.round} ${e.config.commit}`);
+
+  // Speedup chart
+  const spdDatasets = TIERS.map(tier => ({
+    label: tier,
+    data: exps.map(e => {
+      const wl = wlForTier(e.results.workloads || [], tier);
+      return wl ? wl.speedup : null;
+    }),
+    borderColor: TC[tier], backgroundColor: TC[tier] + '20',
+    tension: 0.3, fill: false, pointRadius: 4, spanGaps: true,
+  }));
+  makeChart('chart-speedup', 'line', spdDatasets, labels, 'Speedup (×)');
+
+  // Latency chart
+  const latDatasets = TIERS.map(tier => ({
+    label: tier,
+    data: exps.map(e => {
+      const wl = wlForTier(e.results.workloads || [], tier);
+      return wl ? wl.lat_ms : null;
+    }),
+    borderColor: TC[tier], backgroundColor: TC[tier] + '20',
+    tension: 0.3, fill: false, pointRadius: 4, spanGaps: true,
+  }));
+  makeChart('chart-latency', 'line', latDatasets, labels, 'Latency (ms)');
+}
+
+function renderNcuCharts(exps) {
+  // Only experiments that have ncu data
+  const ncuExps = exps.filter(e => e.ncu && e.ncu.kernels && e.ncu.kernels.length > 0);
+  if (!ncuExps.length) return;
+
+  const labels = ncuExps.map(e => `#${e.config.round} ${e.config.commit}`);
+
+  function ncuMetricDatasets(field) {
+    return TIERS.map(tier => ({
+      label: tier,
+      data: ncuExps.map(e => {
+        const k = gemm2ForTier(e.ncu, tier);
+        return k ? k[field] : null;
+      }),
+      borderColor: TC[tier], backgroundColor: TC[tier] + '20',
+      tension: 0.3, fill: false, pointRadius: 4, spanGaps: true,
+    }));
+  }
+
+  makeChart('chart-sm',   'line', ncuMetricDatasets('sm_pct'),   labels, 'SM%');
+  makeChart('chart-hbm',  'line', ncuMetricDatasets('hbm_pct'),  labels, 'HBM%');
+  makeChart('chart-l1',   'line', ncuMetricDatasets('l1_pct'),   labels, 'L1 hit%');
+  makeChart('chart-warp', 'line', ncuMetricDatasets('warp_pct'), labels, 'Warp%');
+
+  // Duration chart — one dataset per (tier, kernel)
+  const durDatasets = [];
+  TIERS.forEach(tier => {
+    ncuExps[0].ncu.kernels.filter(k => k.tier === tier).forEach(k0 => {
+      durDatasets.push({
+        label: `${tier} · ${k0.kernel.replace('_kernel','').replace('__','_')}`,
+        data: ncuExps.map(e => {
+          const k = (e.ncu.kernels || []).find(k2 => k2.tier === tier && k2.kernel === k0.kernel);
+          return k ? k.dur_us : null;
+        }),
+        borderColor: TC[tier], backgroundColor: TC[tier] + '20',
+        tension: 0.3, fill: false, pointRadius: 3, spanGaps: true,
+        borderDash: k0.kernel.includes('_gemm1') ? [4,2] : k0.kernel.includes('_reduce') ? [2,2] : [],
+      });
+    });
+  });
+  makeChart('chart-dur', 'line', durDatasets, labels, 'Duration (μs)');
+}
+
+function renderNcuTable(exps) {
+  // Show latest experiment that has NCU data
+  const latest = [...exps].reverse().find(e => e.ncu && e.ncu.kernels && e.ncu.kernels.length > 0);
+  const tbody = document.getElementById('ncu-tbody');
+  if (!latest) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);padding:12px">Run update_ncu_history.py to populate NCU metrics.</td></tr>';
+    return;
+  }
+
+  function fPct(v) {
+    if (v === null || v === undefined) return '<span style="color:var(--muted)">?</span>';
+    const n = parseFloat(v);
+    const cls = n >= 70 ? 'c-good' : n >= 40 ? 'c-warn' : 'c-bad';
+    const w = Math.min(100, n).toFixed(0);
+    const col = n >= 70 ? '#3fb950' : n >= 40 ? '#d29922' : '#f85149';
+    return `<div class="bar-wrap"><span class="${cls} hm-val">${n.toFixed(1)}</span>
+      <div class="bar-bg"><div class="bar-fill" style="width:${w}%;background:${col}"></div></div></div>`;
+  }
+
+  tbody.innerHTML = latest.ncu.kernels.map(k => `
+    <tr>
+      <td><span class="tag ${k.tier}">${k.tier}</span></td>
+      <td style="color:var(--muted);font-size:11px">${k.kernel}</td>
+      <td class="hm-val">${k.dur_us !== null ? Number(k.dur_us).toLocaleString() : '?'}</td>
+      <td>${fPct(k.sm_pct)}</td>
+      <td>${fPct(k.hbm_pct)}</td>
+      <td>${fPct(k.l1_pct)}</td>
+      <td>${fPct(k.warp_pct)}</td>
+    </tr>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// Tiles
+// ══════════════════════════════════════════════════════════════
+
+function renderTiles(exps) {
+  if (!exps.length) return;
+
+  TIERS.forEach(tier => {
+    // Find latest experiment with a valid (non-null) result for this tier
+    let wl = null, wlRound = -1;
+    for (let i = exps.length - 1; i >= 0; i--) {
+      const w = wlForTier(exps[i].results.workloads || [], tier);
+      if (w && w.speedup !== null && w.lat_ms !== null) { wl = w; wlRound = i; break; }
+    }
+    // Find previous valid result before wlRound
+    let pwl = null;
+    for (let i = wlRound - 1; i >= 0; i--) {
+      const w = wlForTier(exps[i].results.workloads || [], tier);
+      if (w && w.speedup !== null) { pwl = w; break; }
+    }
+
+    const spd = wl ? wl.speedup : null;
+    const lat = wl ? wl.lat_ms  : null;
+    // Show round label if not the very latest experiment
+    const staleMark = (wl && wlRound < exps.length - 1) ? ` <span style="color:var(--muted);font-size:10px">#${exps[wlRound].config.round}</span>` : '';
+    document.getElementById(`tile-spd-${tier}`).innerHTML = (spd !== null ? spd.toFixed(2) + 'x' : '—') + staleMark;
+    document.getElementById(`tile-lat-${tier}`).textContent = lat !== null ? lat.toFixed(3) + ' ms' : '—';
+
+    const deltaEl = document.getElementById(`tile-delta-${tier}`);
+    if (spd !== null && pwl && pwl.speedup !== null) {
+      const delta = spd - pwl.speedup;
+      const pct   = (delta / pwl.speedup * 100).toFixed(1);
+      const col   = delta >= 0 ? 'var(--green)' : 'var(--red)';
+      const sign  = delta >= 0 ? '+' : '';
+      deltaEl.innerHTML = `<span style="color:${col}">${sign}${pct}% vs prev</span>`;
+    } else {
+      deltaEl.textContent = '';
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// Header badges
+// ══════════════════════════════════════════════════════════════
+
+function renderHeader(exps) {
+  document.getElementById('hdr-rounds').textContent = exps.length + ' experiment' + (exps.length !== 1 ? 's' : '');
+  const last = exps[exps.length - 1];
+  if (last) {
+    document.getElementById('hdr-commit').textContent = last.config.commit;
+    const speedups = TIERS.map(t => {
+      const wl = wlForTier(last.results.workloads || [], t);
+      return wl ? wl.speedup : null;
+    }).filter(Boolean);
+    if (speedups.length) {
+      const avg = (speedups.reduce((a, b) => a + b, 0) / speedups.length).toFixed(2);
+      document.getElementById('hdr-best').textContent = `avg ${avg}x`;
+    }
+  }
+  document.getElementById('hdr-ts').textContent = 'Loaded ' + new Date().toLocaleTimeString();
+}
+
+// ══════════════════════════════════════════════════════════════
+// Experiments tab
+// ══════════════════════════════════════════════════════════════
+
+let expFilter = 'all';
+
+function filterExp(f, btn) {
+  expFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderExpList(getData());
+}
+
+function renderExpList(exps) {
+  const container = document.getElementById('exp-list');
+  const filtered = expFilter === 'all'
+    ? exps
+    : exps.filter(e => (e.config.strategy || '').toLowerCase().includes(expFilter) ||
+                       (e.config.note || '').toLowerCase().includes(expFilter));
+
+  if (!filtered.length) {
+    container.innerHTML = '<div style="color:var(--muted);padding:12px">No experiments match filter.</div>';
+    return;
+  }
+
+  container.innerHTML = [...filtered].reverse().map(e => {
+    const round   = e.config.round;
+    const commit  = e.config.commit;
+    const note    = e.config.note || e.config.changes || '—';
+    const ts      = e.config.ts || '';
+    const wls     = e.results.workloads || [];
+    const allPass = wls.every(w => w.status === 'PASSED');
+    const speedups = wls.map(w => w.speedup).filter(Boolean);
+    const avg = speedups.length ? (speedups.reduce((a,b)=>a+b,0)/speedups.length).toFixed(2) : '—';
+    const passTag = `<span class="tag ${allPass?'pass':'fail'}">${allPass?'PASS':'FAIL'}</span>`;
+    const hasNcu = e.ncu && e.ncu.kernels && e.ncu.kernels.length > 0;
+    const ncuTag = hasNcu ? '<span class="badge" style="font-size:10px">NCU</span>' : '';
+
+    const wlRows = wls.map(w => `
+      <tr>
+        <td><span class="tag ${w.tier||tierOf(w.seq)}">${w.tier||tierOf(w.seq)}</span></td>
+        <td>${w.seq}</td>
+        <td><span class="tag ${w.status==='PASSED'?'pass':'fail'}">${w.status}</span></td>
+        <td>${w.lat_ms !== null && w.lat_ms !== undefined ? w.lat_ms.toFixed(3) : '—'}</td>
+        <td style="font-weight:600;color:${w.speedup>=(wls[0]?.speedup||0)?'var(--green)':'var(--red)'}">${w.speedup !== null && w.speedup !== undefined ? w.speedup.toFixed(2)+'x' : '—'}</td>
+        <td style="color:var(--muted)">${w.max_abs_err !== null && w.max_abs_err !== undefined ? w.max_abs_err.toExponential(2) : '—'}</td>
+        <td style="color:var(--muted)">${w.max_rel_err !== null && w.max_rel_err !== undefined ? w.max_rel_err.toExponential(2) : '—'}</td>
+      </tr>`).join('');
+
+    let ncuRows = '';
+    if (hasNcu) {
+      ncuRows = e.ncu.kernels.map(k => `
+        <tr>
+          <td><span class="tag ${k.tier}">${k.tier}</span></td>
+          <td style="font-size:11px;color:var(--muted)">${k.kernel}</td>
+          <td>${k.dur_us !== null ? Number(k.dur_us).toLocaleString() : '?'}</td>
+          <td>${k.sm_pct !== null ? k.sm_pct+'%' : '?'}</td>
+          <td>${k.hbm_pct !== null ? k.hbm_pct+'%' : '?'}</td>
+          <td>${k.l1_pct !== null ? k.l1_pct+'%' : '?'}</td>
+          <td>${k.warp_pct !== null ? k.warp_pct+'%' : '?'}</td>
+        </tr>`).join('');
+    }
+
+    const id = `exp-${round}`;
+    return `
+    <div class="exp-card" data-status="${e.config.strategy||''}">
+      <div class="exp-header" onclick="toggleExp('${id}')">
+        <span class="exp-round">#${round}</span>
+        <code class="exp-commit">${commit}</code>
+        <span class="exp-note">${note}</span>
+        ${ncuTag}
+        ${passTag}
+        <span style="color:var(--blue);font-weight:600;margin-left:4px">${avg}x avg</span>
+        <span class="exp-ts">${ts.split(' ')[0]}</span>
+        <span class="exp-chevron" id="chev-${id}">▶</span>
+      </div>
+      <div class="exp-body" id="body-${id}">
+        <div class="grid2">
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Benchmark Results</div>
+            <table>
+              <thead><tr><th>Tier</th><th>seq</th><th>Status</th><th>lat(ms)</th><th>speedup</th><th>abs_err</th><th>rel_err</th></tr></thead>
+              <tbody>${wlRows}</tbody>
+            </table>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Notes</div>
+            <div class="notes-pre">${(e.notes || '_No notes.md found_').replace(/</g,'&lt;')}</div>
+          </div>
+        </div>
+        ${hasNcu ? `
+        <div style="margin-top:12px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">NCU Metrics (${e.ncu.source||''})</div>
+          <table>
+            <thead><tr><th>Tier</th><th>Kernel</th><th>Duration (μs)</th><th>SM%</th><th>HBM%</th><th>L1%</th><th>Warp%</th></tr></thead>
+            <tbody>${ncuRows}</tbody>
+          </table>
+        </div>` : '<div style="margin-top:10px;color:var(--muted);font-size:11px">No NCU data. Run: python scripts/update_ncu_history.py --round '+round+' --note "..."</div>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleExp(id) {
+  const body = document.getElementById('body-' + id);
+  const chev = document.getElementById('chev-' + id);
+  const hdr  = body.previousElementSibling;
+  const open = body.classList.contains('open');
+  body.classList.toggle('open', !open);
+  hdr.classList.toggle('open', !open);
+  chev.classList.toggle('open', !open);
+  chev.textContent = open ? '▶' : '▼';
+}
+
+// ══════════════════════════════════════════════════════════════
+// Tabs
+// ══════════════════════════════════════════════════════════════
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  el.classList.add('active');
+  // Resize charts after tab switch (they may have been rendered while hidden)
+  Object.values(charts).forEach(c => c.resize());
+}
+
+// ══════════════════════════════════════════════════════════════
+// Init
+// ══════════════════════════════════════════════════════════════
+
+function init() {
+  // Reload the data sidecar by removing + re-adding the script tag
+  const old = document.querySelector('script[src="dashboard_data.js"]');
+  if (old) old.remove();
+  const s = document.createElement('script');
+  s.src = 'dashboard_data.js?' + Date.now();
+  s.onload = () => render();
+  document.head.appendChild(s);
+}
+
+function render() {
+  const exps = getData();
+  renderHeader(exps);
+  renderTiles(exps);
+  renderPerfCharts(exps);
+  renderNcuCharts(exps);
+  renderNcuTable(exps);
+  renderExpList(exps);
+}
+
+// Initial render on page load (data already in window.EXPERIMENTS from sidecar)
+if (typeof window.EXPERIMENTS !== 'undefined') {
+  render();
+} else {
+  document.getElementById('hdr-ts').textContent = 'Run: python scripts/update_dashboard_data.py';
+}
+</script>
+</body>
+</html>

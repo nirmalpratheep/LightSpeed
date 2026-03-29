@@ -26,33 +26,63 @@ Create high-performance GPU kernels for state-of-the-art LLM architectures on NV
 
 ## Benchmark Results (B200)
 
-### V6 — FP8 Block Scale DS Routing (Current)
+### V7 — Large Tier GEMM2 BM=64 (Current)
 
-**Solution:** `moe_fp8_block_scale_ds_routing` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
+**Solution:** `moe-v2-zerocopy-noatomic` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
+**Commit:** `08386d2` | **Change:** Large GEMM2 `BM=32→64`, `stages=6→4` — halves B-matrix reads for large tier
 
-| Workload | Status | Latency (ms) | Speedup | Max Abs Error | Max Rel Error |
-|----------|--------|-------------|---------|---------------|---------------|
-| b8f4f012 | PASSED | 0.562 | 20.92x | 4.10e+03 | 1.88e+01 |
-| e05c6c03 | PASSED | 0.541 | 20.68x | 2.05e+03 | 9.31e+00 |
-| 6230e838 | PASSED | 0.749 | 18.72x | 4.10e+03 | 1.97e+01 |
-| 8f1ff9f1 | PASSED | 0.862 | 18.42x | 4.10e+03 | 8.20e+02 |
-| 1a4c6ba1 | PASSED | 1.096 | 19.26x | 4.10e+05 | 4.10e+13 |
-| a7c2bcfd | PASSED | 0.603 | 21.10x | 4.10e+03 | 4.59e+01 |
-| 2e69caee | PASSED | 0.472 | 24.38x | 4.10e+03 | 2.00e+01 |
-| 8cba5890 | PASSED | 0.600 | 20.69x | 4.10e+03 | 2.99e+01 |
-| 5e8dc11c | PASSED | 6.656 | 6.77x | 5.82e+05 | 5.37e+13 |
-| 58a34f27 | PASSED | 4.687 | 7.64x | 5.37e+05 | 5.37e+13 |
-| 5eadab1e | PASSED | 0.654 | 21.07x | 2.05e+03 | 4.14e+02 |
-| eedc63b2 | PASSED | 0.727 | 18.82x | 2.05e+03 | 2.60e+02 |
-| e626d3e6 | PASSED | 0.781 | 19.58x | 4.10e+03 | 1.21e+02 |
-| 74d7ff04 | PASSED | 0.783 | 19.10x | 2.05e+03 | 5.40e+03 |
-| 4822167c | PASSED | 0.783 | 19.21x | 2.05e+03 | 7.66e+01 |
-| 81955b1e | PASSED | 0.773 | 18.76x | 4.10e+03 | 1.75e+03 |
-| 76010cb4 | PASSED | 0.760 | 18.84x | 4.10e+03 | 1.82e+02 |
-| fc378037 | PASSED | 0.785 | 18.73x | 4.10e+03 | 2.50e+02 |
-| f7d6ac7c | PASSED | 0.661 | 20.23x | 4.10e+03 | 3.65e+01 |
+| Workload | Tier | Status | Latency (ms) | Speedup | Max Abs Error | Max Rel Error |
+|----------|------|--------|-------------|---------|---------------|---------------|
+| b8f4f012 | tiny | PASSED | 0.662 | 17.65x | 2.05e+03 | 1.59e+01 |
+| e05c6c03 | tiny | PASSED | 0.642 | 17.25x | 2.05e+03 | 4.58e+00 |
+| 6230e838 | small | PASSED | 0.850 | 16.51x | 4.10e+03 | 2.28e+01 |
+| 8f1ff9f1 | small | PASSED | 0.958 | 16.49x | 4.10e+03 | 2.26e+02 |
+| a7c2bcfd | small | PASSED | 0.702 | 18.07x | 4.10e+03 | 2.55e+02 |
+| 2e69caee | small | PASSED | 0.563 | 20.41x | 2.05e+03 | 1.74e+03 |
+| 8cba5890 | small | PASSED | 0.696 | 17.87x | 4.10e+03 | 1.23e+02 |
+| 5eadab1e | small | PASSED | 0.752 | 18.32x | 4.10e+03 | 1.42e+02 |
+| eedc63b2 | small | PASSED | 0.821 | 16.67x | 4.10e+03 | 7.44e+01 |
+| e626d3e6 | small | PASSED | 0.877 | 17.42x | 4.10e+03 | 1.36e+03 |
+| 74d7ff04 | small | PASSED | 0.878 | 16.99x | 4.10e+03 | 1.43e+02 |
+| 4822167c | small | PASSED | 0.885 | 16.99x | 4.10e+03 | 1.99e+02 |
+| 81955b1e | small | PASSED | 0.879 | 16.62x | 4.10e+03 | 9.22e+01 |
+| 76010cb4 | small | PASSED | 0.848 | 16.92x | 4.10e+03 | 7.92e+01 |
+| fc378037 | small | PASSED | 0.877 | 16.70x | 4.10e+03 | 1.06e+02 |
+| f7d6ac7c | small | PASSED | 0.754 | 17.68x | 4.10e+03 | 5.30e+02 |
+| 1a4c6ba1 | medium | PASSED | 1.176 | 17.87x | 4.10e+05 | 3.44e+13 |
+| 5e8dc11c | large | PASSED | 4.953 | **9.10x** | 4.85e+05 | 4.85e+13 |
+| 58a34f27 | large | PASSED | 3.593 | **9.97x** | 4.34e+05 | 4.34e+13 |
 
-**Summary:** All 19 workloads passed. Speedups range from 6.77x to 24.38x. Avg speedup: **18.57x** (vs V5 avg 6.82x — **+172% improvement**). Avg latency: **1.24 ms** (vs V5 avg 2.59 ms — **52% reduction**).
+**Summary:** All 19 workloads passed. Speedups range from 16.49x to 20.41x (non-large), **9.10x–9.97x (large)**. Avg speedup: **16.61x**. Avg latency: **1.18 ms**.
+**Large tier improvement vs V6 baseline (same-day run):** `5e8dc11c` 6.91x→9.10x (**+31.7%**), `58a34f27` 7.75x→9.97x (**+28.6%**). Tiny/small/medium code unchanged; per-tier speedup differences reflect B200 instance variance.
+
+### V6 — FP8 Block Scale DS Routing (Baseline, commit `76baa0d`, re-run 2026-03-29)
+
+**Solution:** `moe-v2-zerocopy-noatomic` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
+
+| Workload | Tier | Status | Latency (ms) | Speedup | Max Abs Error | Max Rel Error |
+|----------|------|--------|-------------|---------|---------------|---------------|
+| b8f4f012 | tiny | PASSED | 0.643 | 18.30x | 4.10e+03 | 6.95e+01 |
+| e05c6c03 | tiny | PASSED | 0.621 | 17.93x | 2.05e+03 | 4.17e+00 |
+| 6230e838 | small | PASSED | 0.823 | 17.26x | 4.10e+03 | 8.61e+01 |
+| 8f1ff9f1 | small | PASSED | 0.931 | 17.05x | 4.10e+03 | 8.24e+02 |
+| a7c2bcfd | small | PASSED | 0.681 | 18.71x | 4.10e+03 | 2.56e+01 |
+| 2e69caee | small | PASSED | 0.540 | 21.34x | 4.10e+03 | 1.45e+01 |
+| 8cba5890 | small | PASSED | 0.678 | 18.44x | 2.05e+03 | 2.45e+02 |
+| 5eadab1e | small | PASSED | 0.726 | 19.01x | 4.10e+03 | 1.32e+02 |
+| eedc63b2 | small | PASSED | 0.804 | 17.12x | 2.05e+03 | 1.77e+02 |
+| e626d3e6 | small | PASSED | 0.857 | 17.85x | 4.10e+03 | 2.46e+02 |
+| 74d7ff04 | small | PASSED | 0.851 | 17.57x | 4.10e+03 | 1.08e+02 |
+| 4822167c | small | PASSED | 0.855 | 17.63x | 4.10e+03 | 1.97e+02 |
+| 81955b1e | small | PASSED | 0.846 | 17.30x | 4.10e+03 | 1.41e+02 |
+| 76010cb4 | small | PASSED | 0.826 | 17.44x | 4.10e+03 | 4.25e+01 |
+| fc378037 | small | PASSED | 0.853 | 17.22x | 4.10e+03 | 1.12e+02 |
+| f7d6ac7c | small | PASSED | 0.722 | 18.52x | 4.10e+03 | 3.08e+01 |
+| 1a4c6ba1 | medium | PASSED | 1.153 | 18.22x | 3.85e+05 | 2.95e+13 |
+| 5e8dc11c | large | PASSED | 6.510 | 6.91x | 5.41e+05 | 5.41e+13 |
+| 58a34f27 | large | PASSED | 4.615 | 7.75x | 5.49e+05 | 5.49e+13 |
+
+**Summary:** All 19 workloads passed. Speedups range from 6.91x to 21.34x. Avg speedup: **16.92x**. Avg latency: **1.29 ms** (vs V5 avg 2.59 ms — **50% reduction**).
 
 ### V5 — Workload-Specialized Dispatch (Previous)
 

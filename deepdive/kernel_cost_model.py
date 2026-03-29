@@ -6,23 +6,38 @@ Parses kernel Python source code via AST to automatically build a compute DAG,
 then predicts latency using measured B200 hardware primitives.
 
 Usage:
-    python deepdive/new_kernel_cost_model.py solution/triton/kernel_ref.py --T 52
-    python deepdive/new_kernel_cost_model.py solution/triton/kernel.py     --T 52
-    python deepdive/new_kernel_cost_model.py --compare --T 52
-    python deepdive/new_kernel_cost_model.py --all-workloads
+    python deepdive/kernel_cost_model.py solution/triton/kernel_ref.py --T 52
+    python deepdive/kernel_cost_model.py solution/triton/kernel.py     --T 52
+    python deepdive/kernel_cost_model.py --compare --T 52
+    python deepdive/kernel_cost_model.py --all-workloads
+    python deepdive/kernel_cost_model.py solution/triton/kernel.py --T 1 --dag-graph dag_seq1.png
+    python deepdive/kernel_cost_model.py solution/triton/kernel.py --T 1 \\
+        --ncu NCU/kernel_wl01_seq1.ncu-rep --dag-graph dag_seq1.png
 
 How it works:
   1) Parse the .py file with Python's ast module
   2) Walk the AST to find: function calls, loops, tensor ops, shapes
   3) Build DagNode list from detected operations
   4) Predict latency using measured GEMM lookups + HBM bandwidth interpolation
+  5) (Optional) Load NCU profile report, map profiled kernels to DAG stages,
+     and render a compute/memory latency DAG graph (requires matplotlib).
+
+DAG Graph:
+  Each node = one logical pipeline stage (Routing, TileMap, GEMM1, GEMM2, Reduce).
+  Node colour  = bottleneck:  RED = compute-bound  |  BLUE = memory-bound
+                               ORANGE = launch-overhead-dominated
+  Two rows per node: predicted latency (cost model) vs actual (NCU profiling).
+  Edges carry the data tensor size flowing between stages.
+  Critical path is highlighted in red.
 """
 
 import argparse
 import ast
+import csv
 import json
 import math
 import os
+import subprocess
 import sys
 import textwrap
 
@@ -747,6 +762,654 @@ def analyze_kernel_file(filepath, T):
 
 
 # =====================================================================
+# NCU Report Parsing
+# =====================================================================
+
+# Maps NCU kernel name substrings → logical DAG stage label.
+# Order matters: first match wins.
+_NCU_STAGE_MAP = [
+    ("_fused_routing_kernel",            "routing"),
+    ("_counting_sort_kernel",            "routing"),
+    ("DeviceScan",                       "routing"),
+    ("CatArrayBatchedCopy",              "routing"),
+    ("scatter_gather",                   "reduce"),
+    ("_build_tile_map_kernel",           "tile_map"),
+    ("_gemm1_swiglu_kernel",             "GEMM1+SwiGLU"),
+    ("_gemm2_kernel",                    "GEMM2"),
+    # Catch-all torch elementwise / unrolled kernels are split by position.
+    # We tag them generically then reassign by sequence in assign_ncu_stages().
+    ("FillFunctor<int>",                 "zero_int"),
+    ("FillFunctor<float>",               "zero_float"),
+    ("direct_copy_kernel",               "copy"),
+    ("elementwise_kernel",               "elementwise"),
+    ("reduce_kernel",                    "reduce_aux"),
+    ("bfloat16_copy",                    "output_copy"),
+    ("BUnaryFunctor",                    "routing"),
+    ("AUnaryFunctor",                    "routing"),
+    ("CUDAFunctor",                      "routing"),
+    ("CUDAFunctorOnSelf",                "routing"),
+    ("launch_clamp",                     "routing"),
+    ("gpu_kernel_impl_nocast",           "elementwise"),
+]
+
+# Per-stage: which NCU kernels are compute-bound vs memory-bound?
+# A stage is "launch-overhead dominated" when actual SM + DRAM util are both < 1 %.
+_COMPUTE_STAGES = {"GEMM1+SwiGLU", "GEMM2"}
+
+
+def _ncu_stage(kernel_name: str) -> str:
+    """Return the logical DAG stage for a raw NCU kernel name."""
+    for fragment, stage in _NCU_STAGE_MAP:
+        if fragment in kernel_name:
+            return stage
+    return "other"
+
+
+def parse_ncu_report(ncu_path: str) -> list[dict]:
+    """
+    Call ncu CLI to export the .ncu-rep file as CSV (--page details) and
+    parse it into a list of per-kernel dicts with keys:
+        id, name, stage, duration_us,
+        sm_throughput_pct, dram_throughput_pct, mem_throughput_GBps
+    Returns [] on failure.
+    """
+    # Locate ncu executable
+    ncu_exe = None
+    for candidate in [
+        "ncu",
+        r"C:\Program Files\NVIDIA Corporation\Nsight Compute 2025.4.1\ncu.bat",
+        r"C:\Program Files\NVIDIA Corporation\Nsight Compute 2024.3.2\ncu.bat",
+        r"C:\Program Files\NVIDIA Corporation\Nsight Compute 2024.1.1\ncu.bat",
+    ]:
+        try:
+            result = subprocess.run(
+                [candidate, "--version"],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                ncu_exe = candidate
+                break
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+
+    if ncu_exe is None:
+        print("[NCU] WARNING: ncu executable not found; skipping NCU data.", file=sys.stderr)
+        return []
+
+    try:
+        result = subprocess.run(
+            [ncu_exe, "--import", ncu_path, "--csv", "--page", "details"],
+            capture_output=True, text=True, timeout=120
+        )
+        raw = result.stdout
+    except subprocess.TimeoutExpired:
+        print("[NCU] WARNING: ncu timed out.", file=sys.stderr)
+        return []
+    except Exception as e:
+        print(f"[NCU] WARNING: {e}", file=sys.stderr)
+        return []
+
+    # Parse CSV — skip non-CSV preamble lines (like .bashrc errors)
+    lines = [l for l in raw.splitlines() if l.startswith('"')]
+    if not lines:
+        print("[NCU] WARNING: no CSV data returned from ncu.", file=sys.stderr)
+        return []
+
+    reader = csv.DictReader(iter(lines))
+    kernels: dict[tuple, dict] = {}
+    order: list[tuple] = []
+
+    for row in reader:
+        kname = row.get("Kernel Name", "")
+        metric = row.get("Metric Name", "")
+        raw_val = row.get("Metric Value", "").replace(",", "")
+        try:
+            val = float(raw_val)
+        except ValueError:
+            val = 0.0
+        kid = int(row.get("ID", "0") or "0")
+        key = (kid, kname)
+        if key not in kernels:
+            kernels[key] = {}
+            order.append(key)
+        kernels[key][metric] = val
+
+    result_list = []
+    for (kid, kname) in order:
+        m = kernels[(kid, kname)]
+        dur = m.get("Duration", 0.0)
+        sm = m.get("Compute (SM) Throughput", 0.0)
+        dram = m.get("DRAM Throughput", 0.0)
+        mem_bw = m.get("Memory Throughput", 0.0)   # GB/s raw value
+        result_list.append({
+            "id": kid,
+            "name": kname,
+            "stage": _ncu_stage(kname),
+            "duration_us": dur,
+            "sm_throughput_pct": sm,
+            "dram_throughput_pct": dram,
+            "mem_throughput_GBps": mem_bw,
+        })
+    return result_list
+
+
+def aggregate_ncu_by_stage(ncu_kernels: list[dict]) -> dict[str, dict]:
+    """
+    Aggregate per-kernel NCU data into per-stage totals.
+    Returns dict keyed by stage name with:
+        total_us, n_kernels, avg_sm_pct, avg_dram_pct,
+        max_sm_pct, max_dram_pct, kernels (list)
+    """
+    stages: dict[str, dict] = {}
+    for k in ncu_kernels:
+        s = k["stage"]
+        if s not in stages:
+            stages[s] = {
+                "total_us": 0.0,
+                "n_kernels": 0,
+                "sm_sum": 0.0,
+                "dram_sum": 0.0,
+                "max_sm_pct": 0.0,
+                "max_dram_pct": 0.0,
+                "kernels": [],
+            }
+        stages[s]["total_us"] += k["duration_us"]
+        stages[s]["n_kernels"] += 1
+        stages[s]["sm_sum"] += k["sm_throughput_pct"]
+        stages[s]["dram_sum"] += k["dram_throughput_pct"]
+        stages[s]["max_sm_pct"] = max(stages[s]["max_sm_pct"], k["sm_throughput_pct"])
+        stages[s]["max_dram_pct"] = max(stages[s]["max_dram_pct"], k["dram_throughput_pct"])
+        stages[s]["kernels"].append(k)
+
+    for s in stages:
+        n = stages[s]["n_kernels"]
+        stages[s]["avg_sm_pct"] = stages[s]["sm_sum"] / n if n else 0
+        stages[s]["avg_dram_pct"] = stages[s]["dram_sum"] / n if n else 0
+    return stages
+
+
+# =====================================================================
+# DAG Stage Definitions (logical pipeline)
+# =====================================================================
+
+# Ordered pipeline stages for the MoE forward pass.
+# Each entry: (stage_id, label, dag_node_name_substrings, inputs, outputs)
+_PIPELINE_STAGES = [
+    {
+        "id": "routing",
+        "label": "Routing\n(sigmoid→topK→sort)",
+        "dag_names": ["routing", "argsort", "sort", "scatter_add", "cumsum",
+                      "zero_int", "copy"],
+        "inputs": ["routing_logits\n[T×256 FP32]", "routing_bias\n[256 FP32]"],
+        "outputs": ["sorted_tids\n[Tk int32]", "sorted_eids\n[Tk int32]",
+                    "expert_offsets\n[33 int32]"],
+        "ncu_stages": ["routing", "zero_int", "copy", "reduce_aux"],
+    },
+    {
+        "id": "tile_map",
+        "label": "Tile Map\n(build_tile_map)",
+        "dag_names": ["tile_map", "build_assign"],
+        "inputs": ["expert_offsets\n[33 int32]"],
+        "outputs": ["tile_ids\n[n_tiles × 5]"],
+        "ncu_stages": ["tile_map"],
+    },
+    {
+        "id": "gemm1",
+        "label": "GEMM1 + SwiGLU\n(FP8 → FP32)",
+        "dag_names": ["GEMM1", "SwiGLU"],
+        "inputs": ["hidden_states\n[T×7168 FP8]",
+                   "W1/W3\n[E×4096×7168 FP8]",
+                   "tile_ids"],
+        "outputs": ["act_fp32\n[Tk×2048 FP32]"],
+        "ncu_stages": ["GEMM1+SwiGLU"],
+    },
+    {
+        "id": "gemm2",
+        "label": "GEMM2\n(FP32 dot)",
+        "dag_names": ["GEMM2"],
+        "inputs": ["act_fp32\n[Tk×2048 FP32]",
+                   "W2\n[E×7168×2048 FP8]"],
+        "outputs": ["g2o_fp32\n[Tk×7168 FP32]"],
+        "ncu_stages": ["GEMM2"],
+    },
+    {
+        "id": "reduce",
+        "label": "Scatter-Reduce\n(weighted sum → BF16)",
+        "dag_names": ["reduce", "scatter", "output_copy", "zero_float",
+                      "elementwise"],
+        "inputs": ["g2o_fp32\n[Tk×7168 FP32]",
+                   "sorted_wts\n[Tk FP32]",
+                   "sorted_tids"],
+        "outputs": ["output\n[T×7168 BF16]"],
+        "ncu_stages": ["reduce", "scatter", "output_copy", "zero_float",
+                       "elementwise", "reduce_aux", "other"],
+    },
+]
+
+
+def _classify_stage_bound(ncu_stage_data: dict | None, stage_id: str) -> str:
+    """
+    Returns 'COMPUTE', 'MEMORY', or 'LAUNCH' based on NCU data or stage_id.
+    LAUNCH = both SM and DRAM utilisation are very low (launch-overhead dominated).
+    """
+    if ncu_stage_data is None:
+        return "COMPUTE" if stage_id in ("gemm1", "gemm2") else "MEMORY"
+    sm = ncu_stage_data.get("avg_sm_pct", 0)
+    dram = ncu_stage_data.get("avg_dram_pct", 0)
+    if sm < 1.0 and dram < 1.0:
+        return "LAUNCH"
+    if sm >= dram:
+        return "COMPUTE"
+    return "MEMORY"
+
+
+# =====================================================================
+# DAG Graph Visualisation
+# =====================================================================
+
+def plot_dag_graph(
+    dag_nodes: list,
+    hw: dict,
+    ncu_kernels: list[dict] | None = None,
+    output_path: str = "dag_latency.png",
+    title: str = "MoE Kernel DAG — Compute / Memory Latency",
+    T: int = 1,
+):
+    """
+    Render a compute/memory latency DAG graph for the MoE kernel pipeline.
+
+    Left panel  — vertical DAG flow (stage nodes + arrows)
+    Right panel — horizontal bar chart (predicted vs NCU latency per stage)
+
+    Colour scheme:
+      RED    = compute-bound   (SM util > DRAM util)
+      BLUE   = memory-bound    (DRAM util > SM util)
+      ORANGE = launch-overhead (both SM and DRAM < 1%)
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+        from matplotlib.patches import FancyBboxPatch
+        import numpy as np
+    except ImportError:
+        print("[DAG] matplotlib not installed — cannot generate graph.", file=sys.stderr)
+        print("[DAG] Install with:  pip install matplotlib", file=sys.stderr)
+        return
+
+    # ── Aggregate NCU data ────────────────────────────────────────────
+    ncu_by_stage: dict[str, dict] = {}
+    if ncu_kernels:
+        raw_agg = aggregate_ncu_by_stage(ncu_kernels)
+        for ps in _PIPELINE_STAGES:
+            total_us = sum(raw_agg.get(s, {}).get("total_us", 0)
+                           for s in ps["ncu_stages"])
+            n_kernels = sum(raw_agg.get(s, {}).get("n_kernels", 0)
+                            for s in ps["ncu_stages"])
+            sm_sum, dram_sum, count = 0.0, 0.0, 0
+            for s in ps["ncu_stages"]:
+                if s in raw_agg:
+                    sm_sum += raw_agg[s]["sm_sum"]
+                    dram_sum += raw_agg[s]["dram_sum"]
+                    count += raw_agg[s]["n_kernels"]
+            ncu_by_stage[ps["id"]] = {
+                "total_us": total_us,
+                "n_kernels": n_kernels,
+                "avg_sm_pct": sm_sum / count if count else 0,
+                "avg_dram_pct": dram_sum / count if count else 0,
+            }
+
+    # ── Predict latency per stage ─────────────────────────────────────
+    def _pred_stage(stage) -> float:
+        total = 0.0
+        for n in dag_nodes:
+            if any(sub.lower() in n.name.lower() for sub in stage["dag_names"]):
+                c, _ = n.cost_us(hw)
+                total += c
+        return total
+
+    # ── Palette ───────────────────────────────────────────────────────
+    C = {"COMPUTE": "#c0392b", "MEMORY": "#2980b9", "LAUNCH": "#e67e22"}
+    BADGE = {"COMPUTE": "COMPUTE BOUND", "MEMORY": "MEMORY BOUND",
+             "LAUNCH": "LAUNCH OVERHEAD"}
+
+    # ── Per-stage data ────────────────────────────────────────────────
+    stage_data = []
+    for ps in _PIPELINE_STAGES:
+        ncu = ncu_by_stage.get(ps["id"])
+        bound = _classify_stage_bound(ncu, ps["id"])
+        stage_data.append({
+            "ps": ps,
+            "bound": bound,
+            "colour": C[bound],
+            "pred_us": _pred_stage(ps),
+            "ncu_us": ncu["total_us"] if ncu else None,
+            "n_kernels": ncu["n_kernels"] if ncu else None,
+            "avg_sm": ncu["avg_sm_pct"] if ncu else None,
+            "avg_dram": ncu["avg_dram_pct"] if ncu else None,
+        })
+
+    n_stages = len(stage_data)
+
+    # ── Figure: two columns ───────────────────────────────────────────
+    fig, (ax, ax_bar) = plt.subplots(
+        1, 2,
+        figsize=(18, 14),
+        gridspec_kw={"width_ratios": [1, 1]},
+        facecolor="#f0f2f5",
+    )
+    for a in (ax, ax_bar):
+        a.set_facecolor("#f0f2f5")
+
+    # ══════════════════════════════════════════════════════════════════
+    # LEFT PANEL — DAG flow (custom drawing, y=0 at bottom)
+    # ══════════════════════════════════════════════════════════════════
+    W = 10.0
+    cx = W / 2
+    node_w = 8.5
+    node_h = 1.70
+    gap = 0.70           # vertical gap between nodes
+    y_step = node_h + gap
+
+    # Assign y positions bottom-up: stage 0 at top → highest y value
+    # node i occupies: y_bot[i] = total_height - (i+1)*y_step - header_space
+    header_space = 2.2
+    total_dag_h = header_space + n_stages * y_step + 0.4
+
+    ax.set_xlim(0, W)
+    ax.set_ylim(0, total_dag_h)
+    ax.axis("off")
+
+    x_left = cx - node_w / 2
+
+    # y_top of stage i (y increases upward, stage 0 is at top = large y)
+    def stage_y_top(i):
+        return total_dag_h - header_space - i * y_step
+
+    def stage_y_bot(i):
+        return stage_y_top(i) - node_h
+
+    # ── Title ─────────────────────────────────────────────────────────
+    ax.text(cx, total_dag_h - 0.5, title,
+            ha="center", va="center", fontsize=10.5, fontweight="bold",
+            color="#1a252f")
+    ax.text(cx, total_dag_h - 1.05,
+            f"T={T} · H={H} · I={I} · E_local={E_LOCAL} · TOP_K={TOP_K}",
+            ha="center", va="center", fontsize=8, color="#666")
+
+    for i, sd in enumerate(stage_data):
+        yt = stage_y_top(i)    # top edge y
+        yb = stage_y_bot(i)    # bottom edge y
+        col = sd["colour"]
+        pred_us = sd["pred_us"]
+        ncu_us = sd["ncu_us"]
+
+        # Shadow
+        ax.add_patch(FancyBboxPatch(
+            (x_left + 0.08, yb - 0.08), node_w, node_h,
+            boxstyle="round,pad=0.06", linewidth=0,
+            facecolor="#c8ccd4", zorder=1))
+
+        # Main box (outline)
+        ax.add_patch(FancyBboxPatch(
+            (x_left, yb), node_w, node_h,
+            boxstyle="round,pad=0.06", linewidth=2,
+            edgecolor=col, facecolor="white", zorder=2))
+
+        # Header strip (top of node)
+        hdr_h = 0.42
+        ax.add_patch(FancyBboxPatch(
+            (x_left, yt - hdr_h), node_w, hdr_h,
+            boxstyle="round,pad=0.03", linewidth=0,
+            facecolor=col, zorder=3))
+
+        # Stage label + badge
+        ax.text(x_left + 0.16, yt - hdr_h / 2,
+                sd["ps"]["label"].replace("\n", "  "),
+                ha="left", va="center", fontsize=9, fontweight="bold",
+                color="white", zorder=4)
+        ax.text(x_left + node_w - 0.12, yt - hdr_h / 2,
+                f"[{BADGE[sd['bound']]}]",
+                ha="right", va="center", fontsize=6.5,
+                color="white", fontstyle="italic", zorder=4, alpha=0.9)
+
+        # Body rows
+        body_top = yt - hdr_h
+        body_bot = yb
+        body_h = body_top - body_bot
+        rh = body_h / 3.8   # row height
+
+        # Row 1: Predicted
+        r1y = body_top - rh * 0.6
+        pred_str = (f"{pred_us/1000:.3f} ms" if pred_us >= 1000
+                    else f"{pred_us:.1f} μs") if pred_us > 0 else "N/A (Triton)"
+        ax.text(x_left + 0.18, r1y, "Predicted:",
+                ha="left", va="center", fontsize=8, color="#666")
+        ax.text(x_left + node_w - 0.16, r1y, pred_str,
+                ha="right", va="center", fontsize=8.5, fontweight="bold",
+                color="#333")
+
+        # Row 2: NCU actual
+        r2y = body_top - rh * 1.6
+        if ncu_us is not None:
+            ncu_str = (f"{ncu_us/1000:.3f} ms" if ncu_us >= 1000
+                       else f"{ncu_us:.1f} μs")
+            ratio = ncu_us / pred_us if pred_us > 0 else None
+            ratio_str = f"  (×{ratio:.1f})" if ratio else ""
+            ratio_col = ("#27ae60" if (ratio and ratio < 1.5) else
+                         "#e67e22" if (ratio and ratio < 3.0) else col)
+            ax.text(x_left + 0.18, r2y, "NCU actual:",
+                    ha="left", va="center", fontsize=8, color="#666")
+            ax.text(x_left + node_w - 0.16, r2y, f"{ncu_str}{ratio_str}",
+                    ha="right", va="center", fontsize=8.5, fontweight="bold",
+                    color=ratio_col)
+        else:
+            ax.text(x_left + 0.18, r2y, "NCU actual:",
+                    ha="left", va="center", fontsize=8, color="#aaa")
+            ax.text(x_left + node_w - 0.16, r2y, "no data",
+                    ha="right", va="center", fontsize=8, color="#aaa")
+
+        # Row 3: Utilisation
+        r3y = body_top - rh * 2.6
+        if sd["avg_sm"] is not None:
+            util_str = (f"SM: {sd['avg_sm']:.1f}%    "
+                        f"DRAM: {sd['avg_dram']:.1f}%    "
+                        f"({sd['n_kernels']} kernels)")
+        else:
+            util_str = f"bottleneck: {BADGE[sd['bound']]}"
+        ax.text(x_left + 0.18, r3y, util_str,
+                ha="left", va="center", fontsize=7.5, color="#444")
+
+        # Mini comparison bar at bottom of node
+        bar_bot = body_bot + 0.10
+        bh = 0.13
+        bmax = node_w - 0.50
+        ref = max(pred_us, ncu_us if ncu_us else 0, 1.0)
+
+        if pred_us > 0:
+            pw = bmax * min(pred_us / ref, 1.0)
+            ax.add_patch(FancyBboxPatch(
+                (x_left + 0.22, bar_bot + bh + 0.03), pw, bh,
+                boxstyle="round,pad=0.008", linewidth=0,
+                facecolor="#95a5a6", zorder=3))
+            ax.text(x_left + 0.22 + pw + 0.06, bar_bot + bh * 1.5 + 0.03,
+                    "pred", fontsize=5.5, color="#888", va="center")
+
+        if ncu_us:
+            aw = bmax * min(ncu_us / ref, 1.0)
+            ax.add_patch(FancyBboxPatch(
+                (x_left + 0.22, bar_bot), aw, bh,
+                boxstyle="round,pad=0.008", linewidth=0,
+                facecolor=col, alpha=0.82, zorder=3))
+            ax.text(x_left + 0.22 + aw + 0.06, bar_bot + bh * 0.5,
+                    "NCU", fontsize=5.5, color=col, va="center")
+
+    # ── Arrows between nodes ──────────────────────────────────────────
+    for i in range(n_stages - 1):
+        y_start = stage_y_bot(i)         # bottom of node i
+        y_end = stage_y_top(i + 1)       # top of node i+1
+        ax.annotate(
+            "",
+            xy=(cx, y_end), xytext=(cx, y_start),
+            arrowprops=dict(
+                arrowstyle="-|>", color="#7f8c8d",
+                lw=2.0, mutation_scale=16),
+            zorder=5)
+
+        outputs = _PIPELINE_STAGES[i]["outputs"]
+        if outputs:
+            mid_y = (y_start + y_end) / 2
+            ax.text(cx + 0.25, mid_y, outputs[0],
+                    ha="left", va="center", fontsize=6.5, color="#7f8c8d",
+                    bbox=dict(boxstyle="round,pad=0.18", facecolor="white",
+                              edgecolor="#bdc3c7", lw=0.5),
+                    zorder=6)
+
+    # ── Side inputs for GEMM stages ───────────────────────────────────
+    _side_inputs_map = {
+        "gemm1": [("hidden_states\n[T×7168 FP8]", 0.28),
+                  ("W1/W3 weights\n[E×4096×7168 FP8]", 0.72)],
+        "gemm2": [("W2 weights\n[E×7168×2048 FP8]", 0.5)],
+    }
+    for sid, items in _side_inputs_map.items():
+        idx = next((ii for ii, s in enumerate(stage_data)
+                    if s["ps"]["id"] == sid), None)
+        if idx is None:
+            continue
+        for lbl, frac in items:
+            yt, yb = stage_y_top(idx), stage_y_bot(idx)
+            y_att = yb + (yt - yb) * (1 - frac)
+            ax.annotate(
+                lbl,
+                xy=(x_left, y_att),
+                xytext=(x_left - 2.2, y_att),
+                fontsize=6.5, color="#555",
+                ha="right", va="center",
+                arrowprops=dict(arrowstyle="-|>", color="#aaa",
+                                lw=1.0, mutation_scale=10),
+                bbox=dict(boxstyle="round,pad=0.22", facecolor="#ecf0f1",
+                          edgecolor="#bdc3c7", lw=0.6),
+                zorder=6, clip_on=False)
+
+    # ── Legend ────────────────────────────────────────────────────────
+    legend_handles = [
+        mpatches.Patch(color=C["COMPUTE"], label="Compute bound  (SM% > DRAM%)"),
+        mpatches.Patch(color=C["MEMORY"],  label="Memory bound   (DRAM% > SM%)"),
+        mpatches.Patch(color=C["LAUNCH"],  label="Launch-overhead (<1% SM & DRAM)"),
+        mpatches.Patch(color="#95a5a6",    label="Predicted (cost model)"),
+    ]
+    ax.legend(handles=legend_handles, loc="lower left",
+              fontsize=7.5, framealpha=0.92, edgecolor="#bdc3c7")
+
+    # ══════════════════════════════════════════════════════════════════
+    # RIGHT PANEL — horizontal bar chart
+    # ══════════════════════════════════════════════════════════════════
+    import numpy as np
+
+    labels = [sd["ps"]["label"].replace("\n", "\n") for sd in stage_data]
+    pred_vals = np.array([sd["pred_us"] for sd in stage_data])
+    ncu_vals  = np.array([sd["ncu_us"] if sd["ncu_us"] else 0.0
+                          for sd in stage_data])
+    colours   = [sd["colour"] for sd in stage_data]
+
+    y_pos = np.arange(n_stages)
+    bar_h = 0.35
+
+    ax_bar.set_facecolor("#f0f2f5")
+    ax_bar.spines["top"].set_visible(False)
+    ax_bar.spines["right"].set_visible(False)
+    ax_bar.spines["left"].set_color("#cccccc")
+    ax_bar.spines["bottom"].set_color("#cccccc")
+
+    # Predicted bars (grey)
+    has_pred = pred_vals.sum() > 0
+    if has_pred:
+        bars_pred = ax_bar.barh(y_pos + bar_h / 2, pred_vals,
+                                height=bar_h, color="#95a5a6",
+                                label="Predicted (cost model)")
+
+    # NCU bars (coloured per stage)
+    for i, (y, v, col) in enumerate(zip(y_pos, ncu_vals, colours)):
+        if v > 0:
+            ax_bar.barh(y - bar_h / 2, v, height=bar_h,
+                        color=col, alpha=0.85,
+                        label="NCU actual" if i == 0 else "")
+
+    # Value labels on bars
+    x_max = max(pred_vals.max() if has_pred else 0,
+                ncu_vals.max(), 1.0)
+    for i, (y, pv, av, col) in enumerate(
+            zip(y_pos, pred_vals, ncu_vals, colours)):
+        if has_pred and pv > 0:
+            pstr = (f"{pv/1000:.2f}ms" if pv >= 1000 else f"{pv:.0f}μs")
+            ax_bar.text(pv + x_max * 0.01, y + bar_h / 2, pstr,
+                        va="center", fontsize=7.5, color="#666")
+        if av > 0:
+            astr = (f"{av/1000:.2f}ms" if av >= 1000 else f"{av:.0f}μs")
+            ax_bar.text(av + x_max * 0.01, y - bar_h / 2, astr,
+                        va="center", fontsize=7.5, color=col,
+                        fontweight="bold")
+
+    # y-axis labels
+    ax_bar.set_yticks(y_pos)
+    ax_bar.set_yticklabels(labels, fontsize=8.5)
+    ax_bar.invert_yaxis()
+
+    # x-axis
+    ax_bar.set_xlabel("Latency (μs)", fontsize=9)
+    ax_bar.tick_params(axis="x", labelsize=8)
+
+    # Totals annotation
+    total_pred = pred_vals.sum()
+    total_ncu  = ncu_vals.sum()
+    totals_str = (
+        f"Total  pred: "
+        f"{'N/A' if not has_pred else (f'{total_pred/1000:.3f}ms' if total_pred>=1000 else f'{total_pred:.0f}μs')}"
+        f"   NCU: {total_ncu/1000:.3f}ms"
+    )
+    ax_bar.set_title(totals_str, fontsize=9, color="#1a252f", pad=6)
+    ax_bar.set_xlabel("Latency (μs)", fontsize=9)
+
+    # Bottleneck insight box
+    dominant = max(stage_data, key=lambda s: s["ncu_us"] or s["pred_us"])
+    dom_time = dominant["ncu_us"] if dominant["ncu_us"] else dominant["pred_us"]
+    insight = (
+        f"Dominant stage: {dominant['ps']['label'].replace(chr(10),' ')}  "
+        f"({dom_time:.0f}μs)\n"
+        f"Bottleneck: {BADGE[dominant['bound']]}"
+    )
+    ax_bar.text(0.98, 0.02, insight,
+                transform=ax_bar.transAxes,
+                ha="right", va="bottom", fontsize=8,
+                color="#1a252f",
+                bbox=dict(boxstyle="round,pad=0.4", facecolor="white",
+                          edgecolor="#bdc3c7", lw=1))
+
+    legend_handles2 = [
+        mpatches.Patch(color="#95a5a6", label="Predicted (cost model)"),
+        mpatches.Patch(color=C["COMPUTE"], label="NCU: Compute bound"),
+        mpatches.Patch(color=C["MEMORY"],  label="NCU: Memory bound"),
+        mpatches.Patch(color=C["LAUNCH"],  label="NCU: Launch overhead"),
+    ]
+    ax_bar.legend(handles=legend_handles2, fontsize=7.5,
+                  framealpha=0.9, loc="lower right")
+
+    ax_bar.set_title(
+        f"Stage Latency Breakdown\n{totals_str}",
+        fontsize=9, color="#1a252f", pad=8)
+
+    fig.suptitle(title, fontsize=12, fontweight="bold",
+                 color="#1a252f", y=0.995)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.995])
+    plt.savefig(output_path, dpi=150, bbox_inches="tight",
+                facecolor=fig.get_facecolor())
+    plt.close()
+    print(f"[DAG] Graph saved to: {output_path}")
+
+
+# =====================================================================
 # Workload Data
 # =====================================================================
 WORKLOADS = [
@@ -789,6 +1452,13 @@ def main():
                         help="Run all 19 workloads for both kernels")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("--hw-json", type=str, default=None)
+    parser.add_argument(
+        "--ncu", type=str, default=None, metavar="NCU_REPORT",
+        help="Path to an .ncu-rep file; overlays actual profiled latency on the DAG graph.")
+    parser.add_argument(
+        "--dag-graph", type=str, default=None, metavar="OUTPUT_PNG",
+        help="Generate a compute/memory latency DAG graph and save to OUTPUT_PNG "
+             "(requires matplotlib). Combine with --ncu to show measured vs predicted.")
     args = parser.parse_args()
 
     hw = load_hw(args.hw_json)
@@ -804,6 +1474,52 @@ def main():
         np = os.path.join(base, "kernel.py")
         if os.path.exists(rp): ref_path = rp
         if os.path.exists(np): new_path = np
+
+    if args.dag_graph:
+        # Determine which kernel file to analyse
+        kernel_path = args.kernel_file
+        if kernel_path is None:
+            for base in [".", "solution/triton", "../solution/triton"]:
+                p = os.path.join(base, "kernel.py")
+                if os.path.exists(p):
+                    kernel_path = p
+                    break
+        if kernel_path is None:
+            print("ERROR: specify a kernel .py file or ensure solution/triton/kernel.py exists.")
+            return
+
+        nodes, name = analyze_kernel_file(kernel_path, args.T)
+        print(f"Kernel: {name}  |  T={args.T}  |  {len(nodes)} DAG nodes")
+        predict_dag(nodes, hw, verbose=args.verbose)
+
+        # Load NCU data if provided
+        ncu_kernels = None
+        if args.ncu:
+            print(f"Loading NCU report: {args.ncu}")
+            ncu_kernels = parse_ncu_report(args.ncu)
+            if ncu_kernels:
+                print(f"  → {len(ncu_kernels)} kernels parsed from NCU report")
+                # Print per-stage summary
+                agg = aggregate_ncu_by_stage(ncu_kernels)
+                print(f"\n  {'Stage':<22} {'Total(μs)':>10} {'#K':>4} "
+                      f"{'SM%':>7} {'DRAM%':>7}")
+                print("  " + "-" * 56)
+                total_ncu = 0.0
+                for s, d in sorted(agg.items(), key=lambda x: -x[1]["total_us"]):
+                    print(f"  {s:<22} {d['total_us']:>10.1f} {d['n_kernels']:>4} "
+                          f"{d['avg_sm_pct']:>7.2f} {d['avg_dram_pct']:>7.2f}")
+                    total_ncu += d["total_us"]
+                print(f"  {'TOTAL':<22} {total_ncu:>10.1f}")
+
+        plot_dag_graph(
+            dag_nodes=nodes,
+            hw=hw,
+            ncu_kernels=ncu_kernels,
+            output_path=args.dag_graph,
+            title=f"MoE Kernel DAG — {os.path.basename(kernel_path)}  T={args.T}",
+            T=args.T,
+        )
+        return
 
     if args.kernel_file:
         nodes, name = analyze_kernel_file(args.kernel_file, args.T)
