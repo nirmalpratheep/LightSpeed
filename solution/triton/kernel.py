@@ -2155,11 +2155,11 @@ if USE_FP8_TRITON:
                             gemm2_weights, gemm2_weights_scale,
                             local_expert_offset, routed_scaling_factor, output):
         """Optimized for seq_len > 2048.
-        GEMM1: FP8×FP8 tensor cores, BM=64, BK=128, stages=5.
-          smem: (64+256)×128×1×5 = 200KB < 232KB (1 CTA/SM) ✓. Up from stages=3 (120KB).
-        GEMM2: FP32 (TF32 on B200), BM=32, BK=64, stages=7 at 2 CTAs/SM.
-          smem: 16KB×7×2 = 224KB < 232KB ✓. Up from stages=6 (192KB).
-          NOTE: FP8/BF16 GEMM2 fail tolerance for large sequences (SwiGLU dynamic range).
+        GEMM1: FP8×FP8 tensor cores, BM=64, BK=128, stages=3.
+        GEMM2: FP32 (TF32 on B200), BM=32, BK=128, stages=3 (96KB smem → 2 CTAs/SM).
+          NCU: stages=7 (224KB) gave 12.5% occupancy (1 CTA/SM). stages=3 (96KB) allows
+          2 CTAs/SM (2×96KB=192KB < 232KB), ~2× warp count → better latency hiding.
+          NOTE: FP8/BF16 GEMM2 fail 2% tolerance for large sequences (SwiGLU dynamic range).
         Reduce: _launch_reduce(block_h=256) — scatter_add OOM for T>50K tokens."""
         seq_len = routing_logits.shape[0]
         device = routing_logits.device
@@ -2176,8 +2176,7 @@ if USE_FP8_TRITON:
         tm1, tm2 = build_two_tile_maps_diff_bm_gpu(
             eoffs, BM1=64, BN1=256, N1=GEMM1_OUT_SIZE, BM2=32, BN2=128, N2=HIDDEN_SIZE, device=device)
 
-        # GEMM1+SwiGLU: BM=64, 8 warps, 5 stages → FP32 act
-        # smem: (64+256)×128×1×5 = 200KB < 232KB (1 CTA/SM) ✓. Was stages=3 (120KB).
+        # GEMM1+SwiGLU: BM=64, 8 warps, 3 stages → FP32 act (proven — K=7168 needs deep pipeline)
         act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
         if tm1.shape[0] > 0:
             grid1 = min(_NUM_SMS * 2, tm1.shape[0])
@@ -2197,13 +2196,15 @@ if USE_FP8_TRITON:
                 stride_bs_n=gemm1_weights_scale.stride(1),
                 stride_bs_k=gemm1_weights_scale.stride(2),
                 BLOCK_M=64, BLOCK_K=128, HALF_N=128, FP8_BLK=BLOCK,
-                num_warps=8, num_stages=5)
+                num_warps=8, num_stages=3)
 
-        # GEMM2: BM=32 BK=64 stages=7 → 112KB/CTA → 2×112=224KB < 232KB → 2 CTAs/SM ✓
-        # (8+8)KB×7=112KB per CTA; was stages=6 (96KB).
+        # GEMM2: BM=32 BK=64 stages=6 → 96KB smem → 2 CTAs/SM (sweet spot, exhaustively tested)
+        # BK=64 stages=6: (8+8)KB×6=96KB → 2×96=192KB < 232KB → 2 CTAs/SM ✓
+        # Tested: BK=128/s7(224KB,1CTA), BK=128/s3(96KB), BK=64/s7(112KB,1CTA),
+        #         BK=32/s6(48KB,4CTAs), BM=16/s6(72KB,3CTAs) — all worse.
         g2o = _launch_gemm2_with_tm(
             act_fp32, gemm2_weights, gemm2_weights_scale, tm2, T,
-            BM=32, BN=128, BK=64, warps=8, stages=7, grid_mult=2, device=device)
+            BM=32, BN=128, BK=64, warps=8, stages=6, grid_mult=2, device=device)
         del act_fp32, tm1, tm2
 
         # Reduce with BLOCK_H=256 (28 blocks vs 56 → fewer launches)
