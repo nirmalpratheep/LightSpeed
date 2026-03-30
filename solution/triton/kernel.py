@@ -2198,7 +2198,7 @@ if USE_FP8_TRITON:
                 stride_bs_n=gemm1_weights_scale.stride(1),
                 stride_bs_k=gemm1_weights_scale.stride(2),
                 BLOCK_M=64, BLOCK_K=128, HALF_N=128, FP8_BLK=BLOCK,
-                num_warps=8, num_stages=4)
+                num_warps=8, num_stages=5)
 
         # GEMM2: BM=64 BK=64 stages=4 → 24KB/stage x4x2CTAs=192KB < 232KB -> 2 CTAs/SM
         # BM=64 halves B reads vs BM=32 (B is reused across more A rows per tile)
