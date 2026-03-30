@@ -2038,7 +2038,7 @@ if USE_FP8_TRITON:
         tm1, tm2 = build_two_tile_maps_gpu(
             eoffs, BM=32, BN1=256, N1=GEMM1_OUT_SIZE, BN2=128, N2=HIDDEN_SIZE, device=device)
 
-        # GEMM1+SwiGLU: BM=32, 8 warps, 8 stages (smem 160KB/CTA<232KB)
+        # GEMM1+SwiGLU: BM=32, 8 warps, 7 stages (140KB/CTA < 232KB limit)
         act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
         if tm1.shape[0] > 0:
             grid1 = min(_NUM_SMS, tm1.shape[0])
