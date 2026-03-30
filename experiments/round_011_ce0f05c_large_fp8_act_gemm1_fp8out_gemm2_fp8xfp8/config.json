@@ -1,9 +1,0 @@
-{
-  "round": 11,
-  "commit": "ce0f05c",
-  "ts": "2026-03-29 23:55 UTC",
-  "note": "large FP8 act GEMM1 fp8out GEMM2 fp8xfp8",
-  "tier": "all",
-  "strategy": "optimization",
-  "changes": "large FP8 act GEMM1 fp8out GEMM2 fp8xfp8"
-}

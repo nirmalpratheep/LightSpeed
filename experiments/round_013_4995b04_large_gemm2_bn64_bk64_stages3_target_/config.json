@@ -1,9 +1,0 @@
-{
-  "round": 13,
-  "commit": "4995b04",
-  "ts": "2026-03-30 00:02 UTC",
-  "note": "large GEMM2 BN=64 BK=64 stages=3 target 3 CTAs/SM",
-  "tier": "all",
-  "strategy": "optimization",
-  "changes": "large GEMM2 BN=64 BK=64 stages=3 target 3 CTAs/SM"
-}

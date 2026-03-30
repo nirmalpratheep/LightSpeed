@@ -1,9 +1,0 @@
-{
-  "round": 0,
-  "commit": "c150589",
-  "ts": "2026-03-27",
-  "note": "V6 baseline — FP8 GEMM1+GEMM2 medium/large, FP32 GEMM2 tiny/small",
-  "tier": "all",
-  "strategy": "baseline",
-  "changes": "Initial V6: workload-tiered dispatch + FP8 tensor cores on B200 (SM10)"
-}
