@@ -1,0 +1,9 @@
+{
+  "round": 3,
+  "commit": "2fe5aff",
+  "ts": "2026-03-29 06:16 UTC",
+  "note": "large GEMM1 s3->5, GEMM2 s6->7 deeper pipeline",
+  "tier": "all",
+  "strategy": "optimization",
+  "changes": "large GEMM1 s3->5, GEMM2 s6->7 deeper pipeline"
+}

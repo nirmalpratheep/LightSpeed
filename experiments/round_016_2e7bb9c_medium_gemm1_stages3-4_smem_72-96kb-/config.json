@@ -1,0 +1,9 @@
+{
+  "round": 16,
+  "commit": "2e7bb9c",
+  "ts": "2026-03-30 00:10 UTC",
+  "note": "medium GEMM1 stages=3->4 (smem 72->96KB/CTA, 2CTAs/SM=192KB<232KB)",
+  "tier": "all",
+  "strategy": "optimization",
+  "changes": "medium GEMM1 stages=3->4 (smem 72->96KB/CTA, 2CTAs/SM=192KB<232KB)"
+}

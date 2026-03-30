@@ -1,0 +1,35 @@
+diff --git a/solution/triton/kernel.py b/solution/triton/kernel.py
+index 6a6c920..e782f23 100644
+--- a/solution/triton/kernel.py
++++ b/solution/triton/kernel.py
+@@ -2172,12 +2172,11 @@ if USE_FP8_TRITON:
+             output.zero_()
+             return output
+ 
+-        # Build both tile maps: GEMM1 BM=64, GEMM2 BM=64
+-        # BM2=64 halves B-matrix (FP8) reads vs BM2=32: B_reads = T/BM * 56 * 128 * INTER
++        # Build both tile maps: GEMM1 BM=64, GEMM2 BM=64 BN=64
+         tm1, tm2 = build_two_tile_maps_diff_bm_gpu(
+-            eoffs, BM1=64, BN1=256, N1=GEMM1_OUT_SIZE, BM2=64, BN2=128, N2=HIDDEN_SIZE, device=device)
++            eoffs, BM1=64, BN1=256, N1=GEMM1_OUT_SIZE, BM2=64, BN2=64, N2=HIDDEN_SIZE, device=device)
+ 
+-        # GEMM1+SwiGLU: BM=64, 8 warps, 3 stages â†’ FP32 act (proven â€” K=7168 needs deep pipeline)
++        # GEMM1+SwiGLU: BM=64, 8 warps, 3 stages -> FP32 act
+         act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
+         if tm1.shape[0] > 0:
+             grid1 = min(_NUM_SMS * 2, tm1.shape[0])
+@@ -2199,11 +2198,11 @@ if USE_FP8_TRITON:
+                 BLOCK_M=64, BLOCK_K=128, HALF_N=128, FP8_BLK=BLOCK,
+                 num_warps=8, num_stages=3)
+ 
+-        # GEMM2: BM=64 BK=64 stages=4 â†’ 24KB/stage x4x2CTAs=192KB < 232KB -> 2 CTAs/SM
+-        # BM=64 halves B reads vs BM=32 (B is reused across more A rows per tile)
++        # GEMM2: BN=64 BK=64 stages=3 -> 20KB/stage x3x3CTAs=184KB < 232KB -> target 3 CTAs/SM
++        # BN=64 halves D acc (32->16 FP32 regs) + halves B tile -> estimated 80 regs vs 108
+         g2o = _launch_gemm2_with_tm(
+             act_fp32, gemm2_weights, gemm2_weights_scale, tm2, T,
+-            BM=64, BN=128, BK=64, warps=8, stages=4, grid_mult=2, device=device)
++            BM=64, BN=64, BK=64, warps=8, stages=3, grid_mult=2, device=device)
+         del act_fp32, tm1, tm2
+ 
+         # Reduce with BLOCK_H=256 (28 blocks vs 56 â†’ fewer launches)

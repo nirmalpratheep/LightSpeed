@@ -1,0 +1,19 @@
+diff --git a/solution/triton/kernel.py b/solution/triton/kernel.py
+index 6a6c920..d51eb6d 100644
+--- a/solution/triton/kernel.py
++++ b/solution/triton/kernel.py
+@@ -2199,11 +2199,11 @@ if USE_FP8_TRITON:
+                 BLOCK_M=64, BLOCK_K=128, HALF_N=128, FP8_BLK=BLOCK,
+                 num_warps=8, num_stages=3)
+ 
+-        # GEMM2: BM=64 BK=64 stages=4 â†’ 24KB/stage x4x2CTAs=192KB < 232KB -> 2 CTAs/SM
+-        # BM=64 halves B reads vs BM=32 (B is reused across more A rows per tile)
++        # GEMM2: BM=64 BK=32 stages=3 -> (64+128)*32*3*3CTAs=165KB < 232KB -> 3 CTAs/SM
++        # BK=64->32: reduces regs 108->~86/thread -> 3 CTAs/SM (37.5% occ vs 24.89%)
+         g2o = _launch_gemm2_with_tm(
+             act_fp32, gemm2_weights, gemm2_weights_scale, tm2, T,
+-            BM=64, BN=128, BK=64, warps=8, stages=4, grid_mult=2, device=device)
++            BM=64, BN=128, BK=32, warps=8, stages=3, grid_mult=2, device=device)
+         del act_fp32, tm1, tm2
+ 
+         # Reduce with BLOCK_H=256 (28 blocks vs 56 â†’ fewer launches)

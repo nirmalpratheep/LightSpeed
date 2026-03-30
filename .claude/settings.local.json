@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ncu --import kernel_wl01_seq1.ncu-rep --print-summary per-kernel)",
+      "Bash(find /c/Users/ssuga/nirmalp/LightSpeed -name run_modal.py -o -name run_*.py)",
+      "Bash(xargs grep:*)",
+      "Bash(python3 -c \"import flashinfer_bench; print\\(flashinfer_bench.__file__\\)\")",
+      "Bash(cat /c/Users/ssuga/nirmalp/LightSpeed/reports/*.json)",
+      "Bash(python3 -c \"import sys,json; [print\\(json.dumps\\(json.loads\\(l\\), indent=2\\)\\) for l in sys.stdin if l.strip\\(\\)]\")",
+      "Bash(ls -lh /c/Users/ssuga/nirmalp/LightSpeed/kernel_wl0*.ncu-rep)",
+      "Bash('NCU=/c/Program Files/NVIDIA Corporation/Nsight Compute 2025.4.1/target/windows-desktop-win7-x64/ncu.exe' $NCU --import /c/Users/ssuga/nirmalp/LightSpeed/NCU/mar27/kernel_wl04_seq901.ncu-rep --csv --page raw --metrics sm__throughput.avg.pct_of_peak_sustained_elapsed,dram__throughput.avg.pct_of_peak_sustained_elapsed,sm__warps_active.avg.pct_of_peak_sustained_active,l1tex__t_sector_hit_rate.pct,l2__t_sector_hit_rate.pct)",
+      "Bash('NCU=/c/Program Files/NVIDIA Corporation/Nsight Compute 2025.4.1/target/windows-desktop-win7-x64/ncu.exe' $NCU --import /c/Users/ssuga/nirmalp/LightSpeed/NCU/mar27/kernel_wl08_seq14107.ncu-rep --csv --page raw --metrics sm__throughput.avg.pct_of_peak_sustained_elapsed,dram__throughput.avg.pct_of_peak_sustained_elapsed,sm__warps_active.avg.pct_of_peak_sustained_active,l1tex__t_sector_hit_rate.pct)",
+      "Bash('NCU=/c/Program Files/NVIDIA Corporation/Nsight Compute 2025.4.1/target/windows-desktop-win7-x64/ncu.exe' $NCU --import /c/Users/ssuga/nirmalp/LightSpeed/NCU/mar27/kernel_wl08_seq14107.ncu-rep --csv --page raw --metrics gpu__time_duration.sum,dram__throughput.avg.pct_of_peak_sustained_elapsed,sm__throughput.avg.pct_of_peak_sustained_elapsed)",
+      "Bash('NCU=/c/Program Files/NVIDIA Corporation/Nsight Compute 2025.4.1/target/windows-desktop-win7-x64/ncu.exe' $NCU --import /c/Users/ssuga/nirmalp/LightSpeed/NCU/mar27/kernel_wl04_seq901.ncu-rep --csv --page raw --metrics gpu__time_duration.sum,dram__throughput.avg.pct_of_peak_sustained_elapsed,sm__throughput.avg.pct_of_peak_sustained_elapsed)",
+      "Bash(curl -s -A \"Mozilla/5.0\" \"https://github.com/karpathy/autoresearch\")",
+      "Bash(python3 -c \"import sys,json; [print\\(json.dumps\\(json.loads\\(l\\), indent=2\\)[:600]\\) for l in sys.stdin]\")",
+      "Bash(python3:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"perf: large tier GEMM2 BM=32->64 stages=5->4 for higher arithmetic intensity:*)",
+      "Bash(modal run:*)",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 modal run scripts/run_modal_limited.py --note \"large GEMM2 BM=64 stages=4\" 2>&1)",
+      "Bash(git revert:*)",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 modal run scripts/run_modal_limited.py --note \"true FP32 baseline confirm\" 2>&1)",
+      "Bash(git commit -m \"perf: large tier GEMM1 stages=3->5, GEMM2 stages=6->7 for deeper HBM pipeline:*)",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 modal run scripts/run_modal_limited.py --note \"large GEMM1 s3->5, GEMM2 s6->7 deeper pipeline\" 2>&1)",
+      "Bash(git commit -m \"perf: large GEMM2 BM=32->64 FP32 path, halves B-matrix reads:*)",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 modal run scripts/run_modal_limited.py --note \"large GEMM2 BM=64 FP32, halves B reads\" 2>&1)",
+      "Bash(git commit -m \"perf: large tier BF16 activations, GEMM2 stages=4->7:*)",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 modal run scripts/run_modal_limited.py --note \"large BF16 act, GEMM2 s7\" 2>&1)",
+      "Bash(git commit:*)",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 modal run scripts/run_modal_limited.py --note \"large BF16 act stages=7\" 2>&1)",
+      "Bash(git checkout:*)",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 modal run scripts/run_modal.py 2>&1)",
+      "Bash(NCU=\"/c/Program Files/NVIDIA Corporation/Nsight Compute 2025.4.1/target/windows-desktop-win7-x64/ncu.exe\")",
+      "Bash(\"$NCU\" --import \"C:/Users/ssuga/nirmalp/LightSpeed/NCU/mar29/kernel_wl08_seq14107.ncu-rep\" --csv --page raw --metrics gpu__time_duration.sum,dram__throughput.avg.pct_of_peak_sustained_elapsed,sm__throughput.avg.pct_of_peak_sustained_elapsed,l2__t_sector_hit_rate.pct,l1tex__t_sector_hit_rate.pct,sm__warps_active.avg.pct_of_peak_sustained_active,dram__bytes_read.sum,dram__bytes_write.sum)",
+      "Bash(\"$NCU\" --import \"C:/Users/ssuga/nirmalp/LightSpeed/NCU/mar29/kernel_wl08_seq14107.ncu-rep\" --csv --page raw --metrics l2__t_sector_hit_rate.pct,dram__throughput.avg.pct_of_peak_sustained_elapsed,sm__pipe_tensor_op_hmma_cycles_active.avg.pct_of_peak_sustained_elapsed,launch__registers_per_thread --kernel-name \"_gemm1_swiglu_kernel|_gemm2_kernel|_reduce_kernel\")",
+      "Bash(\"$NCU\" --import \"C:/Users/ssuga/nirmalp/LightSpeed/NCU/mar29/kernel_wl08_seq14107.ncu-rep\" --csv --page raw --metrics l2__t_sector_hit_rate.pct,dram__throughput.avg.pct_of_peak_sustained_elapsed,launch__registers_per_thread,launch__occupancy)",
+      "Bash(\"$NCU\" --import \"C:/Users/ssuga/nirmalp/LightSpeed/NCU/mar29/kernel_wl08_seq14107.ncu-rep\" --csv --page raw --metrics l2__t_sector_hit_rate.pct,dram__throughput.avg.pct_of_peak_sustained_elapsed,launch__occupancy)",
+      "Bash(\"$NCU\" --import \"C:/Users/ssuga/nirmalp/LightSpeed/NCU/mar29/kernel_wl08_seq14107.ncu-rep\" --print-summary per-kernel)"
+    ]
+  }
+}

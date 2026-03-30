@@ -1,0 +1,30 @@
+diff --git a/solution/triton/kernel.py b/solution/triton/kernel.py
+index 6a6c920..f6fbcbc 100644
+--- a/solution/triton/kernel.py
++++ b/solution/triton/kernel.py
+@@ -2105,7 +2105,8 @@ if USE_FP8_TRITON:
+         tm1, tm2 = build_two_tile_maps_gpu(
+             eoffs, BM=64, BN1=256, N1=GEMM1_OUT_SIZE, BN2=128, N2=HIDDEN_SIZE, device=device)
+ 
+-        # GEMM1+SwiGLU: BM=64, 8 warps, 3 stages â†’ FP32 act
++        # GEMM1+SwiGLU: BM=64, 8 warps, 4 stages â†’ FP32 act
++        # stages=4: smem=96KB/CTA, 2 CTAs/SM -> 192KB < 232KB limit
+         act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
+         if tm1.shape[0] > 0:
+             grid1 = min(_NUM_SMS * 2, tm1.shape[0])
+@@ -2125,12 +2126,12 @@ if USE_FP8_TRITON:
+                 stride_bs_n=gemm1_weights_scale.stride(1),
+                 stride_bs_k=gemm1_weights_scale.stride(2),
+                 BLOCK_M=64, BLOCK_K=128, HALF_N=128, FP8_BLK=BLOCK,
+-                num_warps=8, num_stages=3)
++                num_warps=8, num_stages=4)
+ 
+-        # GEMM2: BM=64 BK=32 stages=8 â€” proven optimal for medium tier
++        # GEMM2: BM=64 BK=32 stages=9 â€” smem=108KB/CTA, 2CTAs=216KB<232KB
+         g2o = _launch_gemm2_with_tm(
+             act_fp32, gemm2_weights, gemm2_weights_scale, tm2, T,
+-            BM=64, BN=128, BK=32, warps=8, stages=8, grid_mult=2, device=device)
++            BM=64, BN=128, BK=32, warps=8, stages=9, grid_mult=2, device=device)
+         del act_fp32, tm1, tm2
+ 
+         # Reduce: scatter_add (faster than _reduce_kernel for medium seq)

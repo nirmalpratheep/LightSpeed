@@ -1,0 +1,19 @@
+{
+  "round": 8,
+  "commit": "7b7a583",
+  "ts": "2026-03-29 23:33 UTC",
+  "all_passed": true,
+  "avg_speedup": 9.01,
+  "workloads": [
+    {
+      "uuid": "5e8dc11c",
+      "tier": "large",
+      "seq": 14107,
+      "status": "PASSED",
+      "lat_ms": 4.980015358924865,
+      "speedup": 9.00518707433612,
+      "max_abs_err": 581632.0,
+      "max_rel_err": 47718399475712.0
+    }
+  ]
+}

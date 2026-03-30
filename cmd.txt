@@ -1,0 +1,1 @@
+flashinfer-bench run --local ./mlsys26-contest --definitions moe_fp8_block_scale_ds_routing_topk8_ng8_kg4_e32_h7168_i2048 --save-results --use-isolated-runner --log-level INFO --resume --timeout 300 --atol 1 --rtol 0.3 --required-matched-ratio 0.9

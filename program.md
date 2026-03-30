@@ -7,11 +7,14 @@ Modelled after karpathy/autoresearch: modify → run → log → keep/revert. Ne
 
 | Script | When to run | Cost |
 |--------|-------------|------|
-| `modal run scripts/run_modal_limited.py --note "..."` | **After every commit** — benchmark 4 representative workloads, append to `reflections.md` | ~3 min |
-| `modal run scripts/run_profiling.py` | **After every commit** — refresh NCU `.ncu-rep` files for reasoning | ~10 min |
-| `modal run scripts/run_modal.py` | **Final validation only** — all 18 workloads for submission | ~15 min |
+| `modal run scripts/run_modal_limited.py --tier <tier> --note "..."` | **Every iteration** — benchmark active tier only (1 workload) | ~1 min |
+| `modal run scripts/run_profiling.py --tier <tier>` | **When tier strategies exhausted** — refresh NCU data for active tier | ~3 min |
+| `modal run scripts/run_modal_limited.py --note "..."` | **Pre-submission only** — all 4 tiers final sanity check | ~3 min |
+| `modal run scripts/run_profiling.py` | **Full NCU refresh** — all 4 tiers | ~10 min |
+| `modal run scripts/run_modal.py` | **Submission validation** — all 18+ workloads | ~15 min |
 
-The optimization loop uses **run_modal_limited** (not run_modal) to keep modal cost low.
+**Rule**: one tier at a time. Use `--tier` every iteration. Each tier's code path is independent.
+Each run auto-creates `experiments/round_NNN_<commit>_<slug>/` with results, notes, and kernel diff.
 
 ## Dashboard
 
@@ -94,6 +97,128 @@ Priority 2 → MEDIUM  (seq=901)    GEMM2 = 629 μs,  40% SM
 Priority 3 → SMALL   (seq=80)     routing + GEMM both suboptimal
 Priority 4 → TINY    (seq=1)      routing overhead 44% — hard to fix without redesign
 ```
+
+---
+
+## 2.5 Per-Tier Tuning Plans (NCU-Guided)
+
+Each tier is tuned independently until it reaches maximum hardware utilization or convergence (3 consecutive failures). For each tier:
+
+1. Work through prioritized strategies in order, one at a time
+2. Benchmark after every change using `--tier <name>` to isolate the target
+3. If ALL strategies exhausted with no net improvement → **re-profile** with `run_profiling.py --tier <name>` to get fresh NCU data and revise the strategy list
+4. Every attempt (keep or discard) captured in: `experiments/`, `reflections.md`, `results.tsv`, `dashboard.html`
+
+---
+
+### Large Tier Tuning Plan
+
+**NCU Profile**: `NCU/mar29/kernel_wl08_seq14107.ncu-rep`
+**Key finding**: Kernels are **LATENCY-BOUND, not bandwidth-bound**. Register pressure limits occupancy. L2 cache reuse of B matrices is already excellent (65–86% hit rate). DRAM throughput is very low (4–8%). Fix: increase occupancy via register reduction.
+
+#### NCU Findings Summary
+
+| Kernel | Duration | Share | Regs/thread | CTAs/SM | Occupancy | DRAM% | L2 Hit% |
+|--------|----------|-------|-------------|---------|-----------|-------|---------|
+| `_gemm1_swiglu_kernel` | 2.583ms | 38% | 232 | 1 | 12.5% | 7.58% | 65.34% |
+| `_gemm2_kernel` | 3.644ms | 53% | 108 | 2 | 24.89% | 4.25% | 86.07% |
+| `_reduce_kernel` | 0.599ms | 9% | 32 | — | — | — | — |
+
+#### Prioritized Strategies (Large Tier)
+
+**L1 — Reduce GEMM1 Register Pressure** ← START HERE
+- **Current**: 232 regs/thread → 1 CTA/SM → 12.5% occupancy → 38% of total time
+- **Target**: <128 regs/thread → 2 CTAs/SM → 25% occupancy (2× improvement)
+- **Action**: Reduce GEMM1 `BK 128 → 64` (halves accumulator register footprint)
+- **Expected gain**: GEMM1 is 38% of time; 2× occupancy → ~15–20% wall-clock improvement
+
+To-do:
+- [ ] Read `kernel_triton_large()` — find current GEMM1 BK and stages
+- [ ] Compute new smem: `(BM_G1 + HALF_N) × BK_new × 1 × stages × n_ctas ≤ 232KB`
+- [ ] Modify `_launch_gemm1_swiglu_with_tm(..., BK=64, ...)` in `kernel_triton_large`
+- [ ] Commit: `"perf: large GEMM1 BK=128->64 to reduce register pressure, target 2 CTAs/SM"`
+- [ ] Run: `modal run scripts/run_modal_limited.py --tier large --note "large GEMM1 BK=64"`
+- [ ] Keep if speedup improves; revert if not
+- [ ] Log to `results.tsv`; fill "What worked" in `reflections.md`; update dashboard NCU table
+
+**L2 — Reduce GEMM2 Register Pressure**
+- **Current**: 108 regs/thread → 2 CTAs/SM → 24.89% occupancy → 53% of total time
+- **Target**: <86 regs/thread → 3 CTAs/SM → 37.5% occupancy (1.5× improvement)
+- **Action**: Reduce GEMM2 `BK 64 → 32`, `stages 4 → 3`
+- **Expected gain**: GEMM2 is 53% of time; 1.5× occupancy → ~15–20% wall-clock improvement
+
+To-do:
+- [ ] Compute new smem: `(64 + 128) × 32 × 1 × 3 × 3 CTAs` — verify ≤ 232KB
+- [ ] Modify `_launch_gemm2_kernel_with_tm(..., BK=32, stages=3, ...)` in `kernel_triton_large`
+- [ ] Commit + run `--tier large --note "large GEMM2 BK=64->32 stages=4->3"`
+- [ ] Keep/revert; update logs
+
+**L3 — Enable Stream Overlap (Free Win)**
+- **Action**: Switch `kernel_triton_large` from `_launch_gemm1_with_tm` to `_launch_gemm1_prefetch_tm2`
+- **Effect**: Overlaps GEMM2 tile-map prefetch with GEMM1 execution — hides tile-map latency for free
+- **Risk**: None (code path already exists)
+
+To-do:
+- [ ] Read `_launch_gemm1_prefetch_tm2` call signature — confirm `tm2` is available at GEMM1 launch time
+- [ ] Swap launch helper in `kernel_triton_large()`
+- [ ] Commit + run `--tier large --note "large stream overlap prefetch_tm2"`
+- [ ] Keep/revert; update logs
+
+**L4 — Fuse GEMM2 + Reduce**
+- **Action**: Replace separate GEMM2 + `_reduce_kernel` with `_gemm2_fused_reduce_kernel`
+- **Effect**: Eliminates FP32 intermediate buffer write (~0.9 GB: T_total × INTER × 4B); removes `_reduce_kernel` launch
+- **Risk**: Medium — atomic contention for 8 experts/token; verify no N-range collision
+
+To-do:
+- [ ] Verify `_gemm2_fused_reduce_kernel` signature and atomic scatter pattern
+- [ ] Check: 2 tiles for same token can't share same pn → no contention
+- [ ] Adapt launch parameters in `kernel_triton_large()`
+- [ ] Run `--tier large --note "large fuse GEMM2+reduce"`
+- [ ] Then run `--tier all` to confirm no regressions on other tiers
+- [ ] Keep/revert; update logs
+
+**L5 — FP8 Activations (Last Resort — High Risk)**
+- **Action**: Switch large tier to `_gemm1_swiglu_fp8out_kernel`
+- **Risk**: BF16 activations already FAILED (atol=1.0 violated when SwiGLU outputs > 128). FP8 E4M3 max=448 with per-block scaling may or may not cover the range.
+- **Pre-check required**: Inspect dynamic scaling implementation before attempting
+
+To-do:
+- [ ] Read `_gemm1_swiglu_fp8out_kernel` — verify per-block scale computation
+- [ ] Estimate max SwiGLU output magnitude for T=14107 inputs
+- [ ] If safe: commit + run `--tier large --note "large FP8 activations per-block scale"`
+- [ ] Keep/revert; update logs
+
+#### Large Tier Convergence → Re-Profile Trigger
+
+After all 5 strategies tried with no net improvement:
+```bash
+modal run scripts/run_profiling.py --tier large
+```
+Re-extract NCU metrics, update the findings table above, revise L1–L5 priorities, and continue.
+
+---
+
+### Medium Tier Tuning Plan
+*(Start after large tier reaches convergence or 3 consecutive failures)*
+
+Strategies to try (in order): B (pipeline depth), C (BM sweep), E (fuse GEMM2+reduce), A (FP8 verification)
+Re-profile trigger: `modal run scripts/run_profiling.py --tier medium`
+
+---
+
+### Small Tier Tuning Plan
+*(Start after medium tier)*
+
+Strategies to try: G (FP8 GEMM2 small), B (stages), C (BM sweep)
+Re-profile trigger: `modal run scripts/run_profiling.py --tier small`
+
+---
+
+### Tiny Tier Tuning Plan
+*(Start after small tier)*
+
+Strategies to try: F (routing kernel fusion — routing overhead is 44% at seq=1), H (warp count)
+Re-profile trigger: `modal run scripts/run_profiling.py --tier tiny`
 
 ---
 
@@ -307,43 +432,120 @@ routing kernel → cumsum → counting_sort → BOTH tile maps → ONE .tolist()
 
 ## 5. The Optimization Loop
 
+Work one tier at a time (large → medium → small → tiny). Push each tier to hardware limits before moving on.
+
+### Per-Iteration To-Do Checklist
+
+Complete EVERY step for each attempt. Do not skip any step.
+
 ```
-LOOP FOREVER (per tier, cycling Priority 1→2→3→4→1→...):
+=== ITERATION CHECKLIST (one per strategy attempt) ===
 
-  FOR each tier in [large, medium, small, tiny]:
+[ ] 1. IDENTIFY next strategy
+        - Read Section 2.5 for the ACTIVE tier's to-do list
+        - Check results.tsv: skip strategies already tried (status = keep/discard/skip)
+        - If 3 consecutive discards → trigger re-profile (step 9)
 
-    1. READ current kernel.py config for this tier
-    2. READ latest NCU data (or use cached values from results.tsv)
-    3. APPLY Reasoning Protocol (Section 3):
-         - Classify bottleneck (memory/compute/launch-overhead)
-         - Check smem working set
-         - Estimate speedup ≥ 5%?
-         - Check correctness safety
-         - Is this similar to a previous discard? → skip
-    4. IF gate passes:
-         a. SELECT next strategy from catalog (Section 4)
-         b. MODIFY solution/triton/kernel.py
-         c. GIT COMMIT with descriptive message
-         d. RUN benchmark:
-              modal run scripts/run_modal_limited.py --note "<what changed>"
-              (4 workloads: wl01/seq1, wl03/seq80, wl04/seq901, wl08/seq14107)
-         e. RUN NCU profile (for next reasoning cycle):
-              modal run scripts/run_profiling.py
-              (runs in background — can reason while it profiles)
-         f. READ reflections.md — parse the new table row
-         g. LOG to results.tsv
-         h. KEEP or REVERT:
-              keep    if ALL tiers pass correctness AND speedup improves for target tier
-                      AND no other tier regresses by > 5%
-              discard if any tier fails correctness (max_rel_err > RTOL or match_ratio < 0.9)
-                      OR if speedup < 1.0 on the target tier
-              → on discard: git revert, update results.tsv + reflections note
-         i. FILL in reflections.md: "What worked" + "Hypothesis for next run"
-    5. ELSE (gate failed):
-         - Log reasoning to results.tsv with status = "skip"
-         - Move to next strategy or next tier
+[ ] 2. APPLY Reasoning Protocol (Section 3)
+        - Classify bottleneck from latest NCU data for THIS tier
+        - Compute smem working set — verify fits in 232KB
+        - Estimate speedup ≥ 5%? (if not: mark skip in results.tsv, move to next strategy)
+        - Check correctness safety (error << atol=1.0, rtol=0.3)
+        - Not similar to a previous discard?
 
-  STOP ONLY IF interrupted manually.
+[ ] 3. MODIFY solution/triton/kernel.py
+        - Change ONLY the active tier's code path (kernel_triton_<tier>)
+        - Other tiers' dispatch branches are UNTOUCHED
+
+[ ] 4. GIT COMMIT
+        git commit -m "perf: <tier> <what changed> <why>"
+
+[ ] 5. RUN benchmark — active tier only
+        modal run scripts/run_modal_limited.py --tier <tier> --note "<what changed>"
+        → Benchmarks only the 1 representative workload for this tier
+        → Creates experiments/round_NNN_<commit>_<slug>/ with:
+           - config.json  (round, commit, timestamp, note, tier)
+           - results.json (workload speedup, latency, correctness)
+           - notes.md     (observations template)
+           - kernel.patch (git diff of this change)
+
+[ ] 6. READ results
+        - Check experiments/round_NNN/results.json for this tier's speedup
+        - Read reflections.md new entry (auto-appended by run_modal_limited.py)
+
+[ ] 7. KEEP or REVERT
+        KEEP if:
+          tier speedup improved vs previous best for this tier
+          AND tier correctness passes (max_rel_err ≤ rtol, match_ratio ≥ 0.9)
+
+        REVERT if:
+          tier fails correctness
+          OR tier speedup did not improve
+          → git revert HEAD
+          → status = "discard" in results.tsv
+
+[ ] 8. UPDATE tracking
+        results.tsv:     append row (round, tier, seq, speedup, sm_pct, max_rel_err, status, description)
+        reflections.md:  fill "What worked / what didn't" + "Hypothesis for next run"
+        experiments/:    fill notes.md observations in round folder
+        dashboard.html:  auto-updated by run_modal_limited.py via update_dashboard_data.py
+        Section 2.5:     mark strategy to-do [x] if kept
+
+[ ] 9. RE-PROFILE TRIGGER (only when ALL strategies for this tier are exhausted with no gain)
+        modal run scripts/run_profiling.py --tier <tier>
+        → Saves new .ncu-rep files to NCU/<date>/ folder
+        → Extract fresh metrics with NCU CLI (see Section 7)
+        → Update NCU Findings table in Section 2.5 for this tier
+        → Revise strategy list — add new strategies, reprioritize
+        → Continue loop with updated plan
+```
+
+### Full Loop
+
+```
+active_tier = large   # start here; advance when tier converges
+
+LOOP FOREVER:
+  tier = active_tier
+  consecutive_failures = 0
+
+  FOR each strategy in tier's to-do list (Section 2.5):
+
+    run ITERATION CHECKLIST above (steps 1–8)
+
+    if kept:
+      consecutive_failures = 0
+    else:
+      consecutive_failures += 1
+      if consecutive_failures >= 3:
+        RUN re-profile (step 9)
+        RESET consecutive_failures = 0
+        CONTINUE with revised strategies
+
+  # All strategies tried for this tier
+  → note in reflections.md: "Tier <X> reached convergence at <best speedup>"
+  → advance active_tier: large → medium → small → tiny → large (cycle)
+
+STOP ONLY IF interrupted manually.
+```
+
+### Benchmark Command Reference
+
+```bash
+# Benchmark active tier only (standard — use this every iteration)
+modal run scripts/run_modal_limited.py --tier large --note "GEMM1 BK=64"
+modal run scripts/run_modal_limited.py --tier medium --note "GEMM2 stages=5"
+modal run scripts/run_modal_limited.py --tier small --note "FP8 GEMM2"
+modal run scripts/run_modal_limited.py --tier tiny --note "routing fusion"
+
+# NCU re-profile for active tier (when strategies exhausted)
+modal run scripts/run_profiling.py --tier large
+
+# Full 4-tier run (only for final validation before submission)
+modal run scripts/run_modal_limited.py --note "pre-submission 4-tier check"
+
+# Full 19-workload submission validation
+modal run scripts/run_modal.py
 ```
 
 ---
@@ -359,7 +561,7 @@ The contest runs all workloads. For this optimization loop, use the 4 representa
 | medium | wl04 | 901   | GEMM2 (629 μs)   | memory-bound, 40% SM |
 | large  | wl08 | 14107 | GEMM2 (6195 μs)  | memory-bound, 49% SM |
 
-**Running only target tier**: `run_modal.py` runs all 4 by default. You cannot skip tiers — treat every run as a 4-tier evaluation. This is why the gate (≥5% gain) is critical: each run validates all 4.
+**Running only target tier**: Use `--tier <name>` to benchmark exactly one tier per iteration. Each tier's code path is fully independent — changing `kernel_triton_large` cannot affect `kernel_triton_small`. Run `--tier all` only for the pre-submission final check.
 
 ---
 

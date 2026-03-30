@@ -1497,5 +1497,401 @@ window.EXPERIMENTS = [
       ]
     },
     "notes": "# Round 6 \u2014 large BF16 act stages=7\n\n**Commit**: a399e7e\n**Date**: 2026-03-29 06:43 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.624 | 17.82x | PASSED |\n| small | 80 | 0.927 | 17.05x | PASSED |\n| medium | 901 | 1.151 | 18.36x | PASSED |\n| large | 14107 | N/A | N/A | INCORRECT_NUMERICAL |\n\n**Avg speedup**: 17.74x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_007_cf98dd2_large_gemm1_bk64_reduce_reg_pressure_ta",
+    "config": {
+      "round": 7,
+      "commit": "cf98dd2",
+      "ts": "2026-03-29 23:31 UTC",
+      "note": "large GEMM1 BK=64 reduce reg pressure target 2 CTAs/SM",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large GEMM1 BK=64 reduce reg pressure target 2 CTAs/SM"
+    },
+    "results": {
+      "round": 7,
+      "commit": "cf98dd2",
+      "ts": "2026-03-29 23:31 UTC",
+      "all_passed": true,
+      "avg_speedup": 8.1,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 5.555416646003723,
+          "speedup": 8.099602231331998,
+          "max_abs_err": 540672.0,
+          "max_rel_err": 48947200524288.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 7 \u2014 large GEMM1 BK=64 reduce reg pressure target 2 CTAs/SM\n\n**Commit**: cf98dd2\n**Date**: 2026-03-29 23:31 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 5.555 | 8.10x | PASSED |\n\n**Avg speedup**: 8.10x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_008_7b7a583_large_stream_overlap_prefetch_tm2",
+    "config": {
+      "round": 8,
+      "commit": "7b7a583",
+      "ts": "2026-03-29 23:33 UTC",
+      "note": "large stream overlap prefetch_tm2",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large stream overlap prefetch_tm2"
+    },
+    "results": {
+      "round": 8,
+      "commit": "7b7a583",
+      "ts": "2026-03-29 23:33 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.01,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.980015358924865,
+          "speedup": 9.00518707433612,
+          "max_abs_err": 581632.0,
+          "max_rel_err": 47718399475712.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 8 \u2014 large stream overlap prefetch_tm2\n\n**Commit**: 7b7a583\n**Date**: 2026-03-29 23:33 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.980 | 9.01x | PASSED |\n\n**Avg speedup**: 9.01x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_009_51b2b3c_large_gemm2_bk32_stages3_target_3_ctas",
+    "config": {
+      "round": 9,
+      "commit": "51b2b3c",
+      "ts": "2026-03-29 23:35 UTC",
+      "note": "large GEMM2 BK=32 stages=3 target 3 CTAs/SM",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large GEMM2 BK=32 stages=3 target 3 CTAs/SM"
+    },
+    "results": {
+      "round": 9,
+      "commit": "51b2b3c",
+      "ts": "2026-03-29 23:35 UTC",
+      "all_passed": true,
+      "avg_speedup": 8.31,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 5.424592959403992,
+          "speedup": 8.307863552984182,
+          "max_abs_err": 565248.0,
+          "max_rel_err": 47923198951424.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 9 \u2014 large GEMM2 BK=32 stages=3 target 3 CTAs/SM\n\n**Commit**: 51b2b3c\n**Date**: 2026-03-29 23:35 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 5.425 | 8.31x | PASSED |\n\n**Avg speedup**: 8.31x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_010_60a390f_large_fuse_gemm2reduce_no_g2o_buffer",
+    "config": {
+      "round": 10,
+      "commit": "60a390f",
+      "ts": "2026-03-29 23:37 UTC",
+      "note": "large fuse GEMM2+reduce no g2o buffer",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large fuse GEMM2+reduce no g2o buffer"
+    },
+    "results": {
+      "round": 10,
+      "commit": "60a390f",
+      "ts": "2026-03-29 23:37 UTC",
+      "all_passed": true,
+      "avg_speedup": 8.66,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 5.1911592264175415,
+          "speedup": 8.66350697767645,
+          "max_abs_err": 598016.0,
+          "max_rel_err": 59801602097152.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 10 \u2014 large fuse GEMM2+reduce no g2o buffer\n\n**Commit**: 60a390f\n**Date**: 2026-03-29 23:37 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 5.191 | 8.66x | PASSED |\n\n**Avg speedup**: 8.66x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_011_ce0f05c_large_fp8_act_gemm1_fp8out_gemm2_fp8xfp8",
+    "config": {
+      "round": 11,
+      "commit": "ce0f05c",
+      "ts": "2026-03-29 23:55 UTC",
+      "note": "large FP8 act GEMM1 fp8out GEMM2 fp8xfp8",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large FP8 act GEMM1 fp8out GEMM2 fp8xfp8"
+    },
+    "results": {
+      "round": 11,
+      "commit": "ce0f05c",
+      "ts": "2026-03-29 23:55 UTC",
+      "all_passed": false,
+      "avg_speedup": 0.0,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "INCORRECT_NUMERICAL",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": 509952.0,
+          "max_rel_err": 43212798427136.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 11 \u2014 large FP8 act GEMM1 fp8out GEMM2 fp8xfp8\n\n**Commit**: ce0f05c\n**Date**: 2026-03-29 23:55 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | N/A | N/A | INCORRECT_NUMERICAL |\n\n**Avg speedup**: 0.00x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_012_943905e_large_gemm1_bk64_stages1_target_2_ctas",
+    "config": {
+      "round": 12,
+      "commit": "943905e",
+      "ts": "2026-03-30 00:00 UTC",
+      "note": "large GEMM1 BK=64 stages=1 target 2 CTAs/SM via reduced addr regs",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large GEMM1 BK=64 stages=1 target 2 CTAs/SM via reduced addr regs"
+    },
+    "results": {
+      "round": 12,
+      "commit": "943905e",
+      "ts": "2026-03-30 00:00 UTC",
+      "all_passed": true,
+      "avg_speedup": 5.45,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 8.288605815887452,
+          "speedup": 5.45386796189786,
+          "max_abs_err": 491520.0,
+          "max_rel_err": 46489598427136.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 12 \u2014 large GEMM1 BK=64 stages=1 target 2 CTAs/SM via reduced addr regs\n\n**Commit**: 943905e\n**Date**: 2026-03-30 00:00 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 8.289 | 5.45x | PASSED |\n\n**Avg speedup**: 5.45x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_013_4995b04_large_gemm2_bn64_bk64_stages3_target_",
+    "config": {
+      "round": 13,
+      "commit": "4995b04",
+      "ts": "2026-03-30 00:02 UTC",
+      "note": "large GEMM2 BN=64 BK=64 stages=3 target 3 CTAs/SM",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large GEMM2 BN=64 BK=64 stages=3 target 3 CTAs/SM"
+    },
+    "results": {
+      "round": 13,
+      "commit": "4995b04",
+      "ts": "2026-03-30 00:02 UTC",
+      "all_passed": true,
+      "avg_speedup": 6.37,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 7.061864327430724,
+          "speedup": 6.3711448765292005,
+          "max_abs_err": 518144.0,
+          "max_rel_err": 51814401572864.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 13 \u2014 large GEMM2 BN=64 BK=64 stages=3 target 3 CTAs/SM\n\n**Commit**: 4995b04\n**Date**: 2026-03-30 00:02 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 7.062 | 6.37x | PASSED |\n\n**Avg speedup**: 6.37x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_014_2e7bb9c_medium_baseline_check",
+    "config": {
+      "round": 14,
+      "commit": "2e7bb9c",
+      "ts": "2026-03-30 00:03 UTC",
+      "note": "medium baseline check",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium baseline check"
+    },
+    "results": {
+      "round": 14,
+      "commit": "2e7bb9c",
+      "ts": "2026-03-30 00:03 UTC",
+      "all_passed": true,
+      "avg_speedup": 18.33,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.1499178221225739,
+          "speedup": 18.328555360075278,
+          "max_abs_err": 428032.0,
+          "max_rel_err": 27033600000000.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 14 \u2014 medium baseline check\n\n**Commit**: 2e7bb9c\n**Date**: 2026-03-30 00:03 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.150 | 18.33x | PASSED |\n\n**Avg speedup**: 18.33x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_015_2e7bb9c_small_baseline_check",
+    "config": {
+      "round": 15,
+      "commit": "2e7bb9c",
+      "ts": "2026-03-30 00:06 UTC",
+      "note": "small baseline check",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small baseline check"
+    },
+    "results": {
+      "round": 15,
+      "commit": "2e7bb9c",
+      "ts": "2026-03-30 00:06 UTC",
+      "all_passed": true,
+      "avg_speedup": 18.13,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8730309113264084,
+          "speedup": 18.126291651659656,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 987.8623657226562
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 15 \u2014 small baseline check\n\n**Commit**: 2e7bb9c\n**Date**: 2026-03-30 00:06 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.873 | 18.13x | PASSED |\n\n**Avg speedup**: 18.13x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_016_2e7bb9c_medium_gemm1_stages3-4_smem_72-96kb-",
+    "config": {
+      "round": 16,
+      "commit": "2e7bb9c",
+      "ts": "2026-03-30 00:10 UTC",
+      "note": "medium GEMM1 stages=3->4 (smem 72->96KB/CTA, 2CTAs/SM=192KB<232KB)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium GEMM1 stages=3->4 (smem 72->96KB/CTA, 2CTAs/SM=192KB<232KB)"
+    },
+    "results": {
+      "round": 16,
+      "commit": "2e7bb9c",
+      "ts": "2026-03-30 00:10 UTC",
+      "all_passed": true,
+      "avg_speedup": 18.46,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.1416927361488343,
+          "speedup": 18.457359443746807,
+          "max_abs_err": 409600.0,
+          "max_rel_err": 31334399475712.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 16 \u2014 medium GEMM1 stages=3->4 (smem 72->96KB/CTA, 2CTAs/SM=192KB<232KB)\n\n**Commit**: 2e7bb9c\n**Date**: 2026-03-30 00:10 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.142 | 18.46x | PASSED |\n\n**Avg speedup**: 18.46x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_017_2e7bb9c_medium_gemm1_s4_gemm2_stages8-9_smem_",
+    "config": {
+      "round": 17,
+      "commit": "2e7bb9c",
+      "ts": "2026-03-30 00:11 UTC",
+      "note": "medium GEMM1 s4 GEMM2 stages=8->9 (smem 108KB/CTA, 2CTAs=216KB<232KB)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium GEMM1 s4 GEMM2 stages=8->9 (smem 108KB/CTA, 2CTAs=216KB<232KB)"
+    },
+    "results": {
+      "round": 17,
+      "commit": "2e7bb9c",
+      "ts": "2026-03-30 00:11 UTC",
+      "all_passed": true,
+      "avg_speedup": 18.27,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.1561500787734986,
+          "speedup": 18.267883107326668,
+          "max_abs_err": 418560.0,
+          "max_rel_err": 35225602097152.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 17 \u2014 medium GEMM1 s4 GEMM2 stages=8->9 (smem 108KB/CTA, 2CTAs=216KB<232KB)\n\n**Commit**: 2e7bb9c\n**Date**: 2026-03-30 00:11 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.156 | 18.27x | PASSED |\n\n**Avg speedup**: 18.27x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_018_2e7bb9c_medium_gemm1_s4_gemm2_bk32-64_stages8",
+    "config": {
+      "round": 18,
+      "commit": "2e7bb9c",
+      "ts": "2026-03-30 00:12 UTC",
+      "note": "medium GEMM1 s4 GEMM2 BK=32->64 stages=8->4 (smem 96KB/CTA 2CTAs=192KB)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium GEMM1 s4 GEMM2 BK=32->64 stages=8->4 (smem 96KB/CTA 2CTAs=192KB)"
+    },
+    "results": {
+      "round": 18,
+      "commit": "2e7bb9c",
+      "ts": "2026-03-30 00:12 UTC",
+      "all_passed": true,
+      "avg_speedup": 19.19,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.113619518995285,
+          "speedup": 19.192099811371666,
+          "max_abs_err": 389120.0,
+          "max_rel_err": 38912001048576.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 18 \u2014 medium GEMM1 s4 GEMM2 BK=32->64 stages=8->4 (smem 96KB/CTA 2CTAs=192KB)\n\n**Commit**: 2e7bb9c\n**Date**: 2026-03-30 00:12 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.114 | 19.19x | PASSED |\n\n**Avg speedup**: 19.19x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
   }
 ];

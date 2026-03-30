@@ -1,0 +1,152 @@
+{
+  "round": 5,
+  "commit": "8ee1ca1",
+  "ts": "2026-03-29 06:38 UTC",
+  "note": "large BF16 act GEMM2 s7",
+  "source": "NCU/mar27",
+  "kernels": [
+    {
+      "kernel_raw": "_fused_routing_kernel",
+      "kernel": "_fused_routing_kernel",
+      "dur_us": 0.0,
+      "sm_pct": 0.03,
+      "hbm_pct": null,
+      "l1_pct": 37.11,
+      "warp_pct": 1.58,
+      "tier": "tiny",
+      "seq": 1
+    },
+    {
+      "kernel_raw": "_gemm1_swiglu_kernel",
+      "kernel": "_gemm1_swiglu_kernel",
+      "dur_us": 0.1,
+      "sm_pct": 6.8,
+      "hbm_pct": null,
+      "l1_pct": 1.15,
+      "warp_pct": 6.27,
+      "tier": "tiny",
+      "seq": 1
+    },
+    {
+      "kernel_raw": "_gemm2_kernel",
+      "kernel": "_gemm2_kernel",
+      "dur_us": 0.1,
+      "sm_pct": 29.82,
+      "hbm_pct": null,
+      "l1_pct": 1.84,
+      "warp_pct": 7.33,
+      "tier": "tiny",
+      "seq": 1
+    },
+    {
+      "kernel_raw": "_fused_routing_kernel",
+      "kernel": "_fused_routing_kernel",
+      "dur_us": 0.0,
+      "sm_pct": 1.73,
+      "hbm_pct": null,
+      "l1_pct": 40.87,
+      "warp_pct": 1.56,
+      "tier": "small",
+      "seq": 80
+    },
+    {
+      "kernel_raw": "_gemm1_swiglu_kernel",
+      "kernel": "_gemm1_swiglu_kernel",
+      "dur_us": 0.4,
+      "sm_pct": 42.47,
+      "hbm_pct": null,
+      "l1_pct": 3.81,
+      "warp_pct": 12.48,
+      "tier": "small",
+      "seq": 80
+    },
+    {
+      "kernel_raw": "_gemm2_kernel",
+      "kernel": "_gemm2_kernel",
+      "dur_us": 0.4,
+      "sm_pct": 40.32,
+      "hbm_pct": null,
+      "l1_pct": 3.06,
+      "warp_pct": 12.49,
+      "tier": "small",
+      "seq": 80
+    },
+    {
+      "kernel_raw": "_fused_routing_kernel",
+      "kernel": "_fused_routing_kernel",
+      "dur_us": 0.0,
+      "sm_pct": 17.53,
+      "hbm_pct": null,
+      "l1_pct": 54.7,
+      "warp_pct": 7.74,
+      "tier": "medium",
+      "seq": 901
+    },
+    {
+      "kernel_raw": "_gemm1_swiglu_kernel",
+      "kernel": "_gemm1_swiglu_kernel",
+      "dur_us": 0.4,
+      "sm_pct": 31.25,
+      "hbm_pct": null,
+      "l1_pct": 3.81,
+      "warp_pct": 12.51,
+      "tier": "medium",
+      "seq": 901
+    },
+    {
+      "kernel_raw": "_gemm2_kernel",
+      "kernel": "_gemm2_kernel",
+      "dur_us": 0.6,
+      "sm_pct": 40.43,
+      "hbm_pct": null,
+      "l1_pct": 2.91,
+      "warp_pct": 24.23,
+      "tier": "medium",
+      "seq": 901
+    },
+    {
+      "kernel_raw": "_fused_routing_kernel",
+      "kernel": "_fused_routing_kernel",
+      "dur_us": 0.0,
+      "sm_pct": 72.89,
+      "hbm_pct": null,
+      "l1_pct": 22.68,
+      "warp_pct": 68.94,
+      "tier": "large",
+      "seq": 14107
+    },
+    {
+      "kernel_raw": "_gemm1_swiglu_kernel",
+      "kernel": "_gemm1_swiglu_kernel",
+      "dur_us": 0.0,
+      "sm_pct": 34.83,
+      "hbm_pct": null,
+      "l1_pct": 5.0,
+      "warp_pct": 12.56,
+      "tier": "large",
+      "seq": 14107
+    },
+    {
+      "kernel_raw": "_gemm2_kernel",
+      "kernel": "_gemm2_kernel",
+      "dur_us": 0.0,
+      "sm_pct": 49.01,
+      "hbm_pct": null,
+      "l1_pct": 1.73,
+      "warp_pct": 22.15,
+      "tier": "large",
+      "seq": 14107
+    },
+    {
+      "kernel_raw": "_reduce_kernel",
+      "kernel": "_reduce_kernel",
+      "dur_us": 0.0,
+      "sm_pct": 71.83,
+      "hbm_pct": null,
+      "l1_pct": 19.79,
+      "warp_pct": 90.26,
+      "tier": "large",
+      "seq": 14107
+    }
+  ]
+}

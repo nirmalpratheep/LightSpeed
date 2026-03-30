@@ -1,0 +1,9 @@
+{
+  "round": 7,
+  "commit": "cf98dd2",
+  "ts": "2026-03-29 23:31 UTC",
+  "note": "large GEMM1 BK=64 reduce reg pressure target 2 CTAs/SM",
+  "tier": "all",
+  "strategy": "optimization",
+  "changes": "large GEMM1 BK=64 reduce reg pressure target 2 CTAs/SM"
+}

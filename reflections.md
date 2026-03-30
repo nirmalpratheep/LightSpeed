@@ -162,3 +162,171 @@ modal run scripts/run_profiling.py
 **Hypothesis for next run**: _[fill in]_
 
 ---
+## 2026-03-29 23:31 UTC  `cf98dd2`
+**Note**: large GEMM1 BK=64 reduce reg pressure target 2 CTAs/SM
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | PASSED | 5.555 | 8.10x | 5.41e+05 | 4.89e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **8.10x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-29 23:33 UTC  `7b7a583`
+**Note**: large stream overlap prefetch_tm2
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | PASSED | 4.980 | 9.01x | 5.82e+05 | 4.77e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **9.01x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-29 23:35 UTC  `51b2b3c`
+**Note**: large GEMM2 BK=32 stages=3 target 3 CTAs/SM
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | PASSED | 5.425 | 8.31x | 5.65e+05 | 4.79e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **8.31x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-29 23:37 UTC  `60a390f`
+**Note**: large fuse GEMM2+reduce no g2o buffer
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | PASSED | 5.191 | 8.66x | 5.98e+05 | 5.98e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **8.66x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-29 23:55 UTC  `ce0f05c`
+**Note**: large FP8 act GEMM1 fp8out GEMM2 fp8xfp8
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | INCORRECT_NUMERICAL | N/A | N/A | 5.10e+05 | 4.32e+13 |
+
+**Summary**: 0/1 PASSED | avg speedup **0.00x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-30 00:00 UTC  `943905e`
+**Note**: large GEMM1 BK=64 stages=1 target 2 CTAs/SM via reduced addr regs
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | PASSED | 8.289 | 5.45x | 4.92e+05 | 4.65e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **5.45x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-30 00:02 UTC  `4995b04`
+**Note**: large GEMM2 BN=64 BK=64 stages=3 target 3 CTAs/SM
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | PASSED | 7.062 | 6.37x | 5.18e+05 | 5.18e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **6.37x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-30 00:03 UTC  `2e7bb9c`
+**Note**: medium baseline check
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 1a4c6ba1 | medium | 901 | PASSED | 1.150 | 18.33x | 4.28e+05 | 2.70e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **18.33x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-30 00:06 UTC  `2e7bb9c`
+**Note**: small baseline check
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 8f1ff9f1 | small | 80 | PASSED | 0.873 | 18.13x | 4.10e+03 | 9.88e+02 |
+
+**Summary**: 1/1 PASSED | avg speedup **18.13x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-30 00:10 UTC  `2e7bb9c`
+**Note**: medium GEMM1 stages=3->4 (smem 72->96KB/CTA, 2CTAs/SM=192KB<232KB)
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 1a4c6ba1 | medium | 901 | PASSED | 1.142 | 18.46x | 4.10e+05 | 3.13e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **18.46x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-30 00:11 UTC  `2e7bb9c`
+**Note**: medium GEMM1 s4 GEMM2 stages=8->9 (smem 108KB/CTA, 2CTAs=216KB<232KB)
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 1a4c6ba1 | medium | 901 | PASSED | 1.156 | 18.27x | 4.19e+05 | 3.52e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **18.27x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-30 00:12 UTC  `2e7bb9c`
+**Note**: medium GEMM1 s4 GEMM2 BK=32->64 stages=8->4 (smem 96KB/CTA 2CTAs=192KB)
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 1a4c6ba1 | medium | 901 | PASSED | 1.114 | 19.19x | 3.89e+05 | 3.89e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **19.19x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---

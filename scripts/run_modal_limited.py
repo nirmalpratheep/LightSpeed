@@ -12,8 +12,9 @@ the run to reflections.md for the optimization loop.
 
 Usage:
     modal run scripts/run_modal_limited.py
+    modal run scripts/run_modal_limited.py --tier large
+    modal run scripts/run_modal_limited.py --tier large --note "GEMM1 BK=64"
     modal run scripts/run_modal_limited.py --iterations 50
-    modal run scripts/run_modal_limited.py --note "FP8 GEMM2 medium+large"
 
 Setup (one-time):
     modal setup
@@ -48,6 +49,14 @@ image = (
 # Mirrors REPRESENTATIVE_WORKLOADS in run_profiling.py — one per tier.
 REPRESENTATIVE_INDICES = {1, 3, 4, 8}
 
+TIER_WORKLOAD_IDX = {
+    "tiny":   {1},
+    "small":  {3},
+    "medium": {4},
+    "large":  {8},
+    "all":    {1, 3, 4, 8},
+}
+
 TIER_LABELS = {
     range(0, 9):    "tiny",
     range(9, 129):  "small",
@@ -63,8 +72,15 @@ def _tier(seq: int) -> str:
     return "?"
 
 
-def _load_representative_uuids(definition: str) -> list[str]:
-    """Return UUIDs for the 4 representative workloads (loaded from local JSONL)."""
+def _load_representative_uuids(definition: str, indices: set[int] | None = None) -> list[str]:
+    """Return UUIDs for representative workloads (loaded from local JSONL).
+
+    Args:
+        definition: The definition name to load workloads for.
+        indices: Which workload indices to include. Defaults to all 4 representatives.
+    """
+    if indices is None:
+        indices = REPRESENTATIVE_INDICES
     workload_file = (
         PROJECT_ROOT / "mlsys26-contest" / "workloads" / "moe"
         / f"{definition}.jsonl"
@@ -72,7 +88,7 @@ def _load_representative_uuids(definition: str) -> list[str]:
     uuids: list[str] = []
     with open(workload_file, encoding="utf-8") as fh:
         for i, line in enumerate(fh):
-            if i in REPRESENTATIVE_INDICES:
+            if i in indices:
                 data = json.loads(line)
                 uuids.append(data["workload"]["uuid"])
     return uuids
@@ -383,8 +399,9 @@ def main(
     trials: int = 5,
     note: str = "",
     round_num: int = -1,
+    tier: str = "all",
 ) -> None:
-    """Pack solution and run benchmark on Modal for 4 representative workloads.
+    """Pack solution and run benchmark on Modal for representative workloads.
 
     Args:
         iterations: Number of timed iterations per workload (default 100).
@@ -392,8 +409,19 @@ def main(
         trials:     Number of independent trials (default 5).
         note:       Short description of what changed, appended to reflections.md.
         round_num:  Override round number (default: auto-detect from experiments/).
+        tier:       Which tier to benchmark — tiny | small | medium | large | all (default: all).
+
+    Examples:
+        modal run scripts/run_modal_limited.py --tier large
+        modal run scripts/run_modal_limited.py --tier large --note "GEMM1 BK=64"
+        modal run scripts/run_modal_limited.py
     """
     from scripts.pack_solution import pack_solution
+
+    if tier not in TIER_WORKLOAD_IDX:
+        raise ValueError(f"Unknown tier '{tier}'. Choose from: {list(TIER_WORKLOAD_IDX)}")
+
+    selected_indices = TIER_WORKLOAD_IDX[tier]
 
     print("Packing solution from source files...")
     solution_path = pack_solution()
@@ -402,16 +430,16 @@ def main(
     solution = Solution.model_validate_json(solution_path.read_text(encoding="utf-8"))
     print(f"Loaded : {solution.name}  ({solution.definition})")
 
-    print("\nResolving representative workload UUIDs...")
-    rep_uuids = _load_representative_uuids(solution.definition)
-    for idx, uid in zip(sorted(REPRESENTATIVE_INDICES), rep_uuids):
+    print(f"\nResolving workload UUIDs for tier={tier}...")
+    rep_uuids = _load_representative_uuids(solution.definition, selected_indices)
+    for idx, uid in zip(sorted(selected_indices), rep_uuids):
         print(f"  idx={idx}  uuid={uid[:8]}...")
 
     config = BenchmarkConfig(warmup_runs=warmup, iterations=iterations, num_trials=trials)
 
     print(
         f"\nRunning benchmark on Modal B200  "
-        f"(4 workloads | warmup={warmup} | iter={iterations} | trials={trials})..."
+        f"({len(rep_uuids)} workload(s) [{tier}] | warmup={warmup} | iter={iterations} | trials={trials})..."
     )
     results = run_benchmark_limited.remote(solution, rep_uuids, config)
 

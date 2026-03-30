@@ -1,0 +1,17 @@
+diff --git a/solution/triton/kernel.py b/solution/triton/kernel.py
+index eda4b83..605bb4c 100644
+--- a/solution/triton/kernel.py
++++ b/solution/triton/kernel.py
+@@ -2177,9 +2177,9 @@ if USE_FP8_TRITON:
+         tm1, tm2 = build_two_tile_maps_diff_bm_gpu(
+             eoffs, BM1=64, BN1=256, N1=GEMM1_OUT_SIZE, BM2=64, BN2=128, N2=HIDDEN_SIZE, device=device)
+ 
+-        # GEMM1+SwiGLU: BM=64, BK=64, 8 warps, 3 stages â†’ FP32 act
+-        # BK=128â†’64: halves accumulator reg pressure (232â†’~116 regs/thread) â†’ 2 CTAs/SM (25% occ)
+-        # Smem: (64+128)Ã—64Ã—3Ã—2CTAs = 73KB < 232KB âœ“
++        # GEMM1+SwiGLU: BM=64, BK=64, 8 warps, 3 stages -> FP32 act
++        # BK=128->64: halves accumulator reg pressure (232->~116 regs/thread) -> 2 CTAs/SM (25% occ)
++        # Smem: (64+128)*64*3*2CTAs = 73KB < 232KB OK
+         act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
+         if tm1.shape[0] > 0:
+             grid1 = min(_NUM_SMS * 2, tm1.shape[0])

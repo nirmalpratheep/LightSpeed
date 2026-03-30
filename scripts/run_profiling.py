@@ -108,8 +108,16 @@ def run_ncu(solution: Solution, workload: Workload, workload_idx: int, seq_len: 
 #   wl01 (seq=1)     → tiny   (≤8)
 #   wl03 (seq=80)    → small  (9–128)
 #   wl04 (seq=901)   → medium (129–2048)
-#   wl08 (seq=14107)  → large  (>2048)
+#   wl08 (seq=14107) → large  (>2048)
 REPRESENTATIVE_WORKLOADS = {1, 3, 4, 8}
+
+TIER_WORKLOAD_IDX = {
+    "tiny":   {1},
+    "small":  {3},
+    "medium": {4},
+    "large":  {8},
+    "all":    {1, 3, 4, 8},
+}
 
 
 def _load_workloads(definition: str, representative_only: bool = True) -> list[dict]:
@@ -138,9 +146,25 @@ def main(
     max_workloads: int = 0,
     ncu_set: str = "detailed",
     all_workloads: bool = False,
+    tier: str = "all",
 ):
-    """Pack solution and run NCU profiling on Modal for all workloads."""
+    """Pack solution and run NCU profiling on Modal for workloads.
+
+    Args:
+        tier: Which tier to profile — tiny | small | medium | large | all (default: all)
+        max_workloads: Cap number of workloads (0 = no cap).
+        ncu_set: NCU metric set — detailed | full | source (default: detailed).
+        all_workloads: Profile every workload in the definition (not just representatives).
+
+    Examples:
+        modal run scripts/run_profiling.py --tier large
+        modal run scripts/run_profiling.py --tier medium
+        modal run scripts/run_profiling.py
+    """
     from scripts.pack_solution import pack_solution
+
+    if tier not in TIER_WORKLOAD_IDX:
+        raise ValueError(f"Unknown tier '{tier}'. Choose from: {list(TIER_WORKLOAD_IDX)}")
 
     print("Packing solution from source files...")
     solution_path = pack_solution()
@@ -149,8 +173,11 @@ def main(
     solution = Solution.model_validate_json(solution_path.read_text(encoding="utf-8"))
     print(f"Loaded: {solution.name} ({solution.definition})")
 
-    # Load workloads (representative only by default: 4 workloads covering all tiers)
+    # Load workloads filtered by tier
+    selected_indices = TIER_WORKLOAD_IDX[tier]
     workloads = _load_workloads(solution.definition, representative_only=not all_workloads)
+    if tier != "all":
+        workloads = [wl for wl in workloads if wl["idx"] in selected_indices]
     if max_workloads > 0:
         workloads = workloads[:max_workloads]
     print(f"\nFound {len(workloads)} workloads to profile")

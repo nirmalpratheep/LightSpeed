@@ -1,0 +1,9 @@
+{
+  "round": 4,
+  "commit": "fcc06bf",
+  "ts": "2026-03-29 06:25 UTC",
+  "note": "large GEMM2 BM=64 FP32, halves B reads",
+  "tier": "all",
+  "strategy": "optimization",
+  "changes": "large GEMM2 BM=64 FP32, halves B reads"
+}

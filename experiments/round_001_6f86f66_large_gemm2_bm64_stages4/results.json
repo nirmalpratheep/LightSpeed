@@ -1,0 +1,49 @@
+{
+  "round": 1,
+  "commit": "6f86f66",
+  "ts": "2026-03-29 06:01 UTC",
+  "all_passed": false,
+  "avg_speedup": 17.48,
+  "workloads": [
+    {
+      "uuid": "e05c6c03",
+      "tier": "tiny",
+      "seq": 1,
+      "status": "PASSED",
+      "lat_ms": 0.6152202248573303,
+      "speedup": 17.9792392376026,
+      "max_abs_err": 2048.0,
+      "max_rel_err": 4.102362155914307
+    },
+    {
+      "uuid": "8f1ff9f1",
+      "tier": "small",
+      "seq": 80,
+      "status": "PASSED",
+      "lat_ms": 0.9302833914756775,
+      "speedup": 16.97590612204002,
+      "max_abs_err": 4096.0,
+      "max_rel_err": 113.90255737304688
+    },
+    {
+      "uuid": "1a4c6ba1",
+      "tier": "medium",
+      "seq": 901,
+      "status": "INCORRECT_NUMERICAL",
+      "lat_ms": null,
+      "speedup": null,
+      "max_abs_err": 325632.0,
+      "max_rel_err": 32563200524288.0
+    },
+    {
+      "uuid": "5e8dc11c",
+      "tier": "large",
+      "seq": 14107,
+      "status": "INCORRECT_NUMERICAL",
+      "lat_ms": null,
+      "speedup": null,
+      "max_abs_err": 528384.0,
+      "max_rel_err": 48742401048576.0
+    }
+  ]
+}
