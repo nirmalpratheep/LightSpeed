@@ -1893,5 +1893,2156 @@ window.EXPERIMENTS = [
     },
     "ncu": {},
     "notes": "# Round 18 \u2014 medium GEMM1 s4 GEMM2 BK=32->64 stages=8->4 (smem 96KB/CTA 2CTAs=192KB)\n\n**Commit**: 2e7bb9c\n**Date**: 2026-03-30 00:12 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.114 | 19.19x | PASSED |\n\n**Avg speedup**: 19.19x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_019_617b45e_medium_gemm2_bk64_stages8_grid_mult1_",
+    "config": {
+      "round": 19,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:15 UTC",
+      "note": "medium GEMM2 BK=64 stages=8 grid_mult=1 (smem 192KB/CTA deeper pipeline)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium GEMM2 BK=64 stages=8 grid_mult=1 (smem 192KB/CTA deeper pipeline)"
+    },
+    "results": {
+      "round": 19,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:15 UTC",
+      "all_passed": true,
+      "avg_speedup": 16.98,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.2276887061595916,
+          "speedup": 16.976164276441718,
+          "max_abs_err": 434176.0,
+          "max_rel_err": 34406400000000.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 19 \u2014 medium GEMM2 BK=64 stages=8 grid_mult=1 (smem 192KB/CTA deeper pipeline)\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:15 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.228 | 16.98x | PASSED |\n\n**Avg speedup**: 16.98x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_020_617b45e_medium_gemm2_bk64_stages3_grid_mult2_",
+    "config": {
+      "round": 20,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:17 UTC",
+      "note": "medium GEMM2 BK=64 stages=3 grid_mult=2 (smem 72KB/CTA)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium GEMM2 BK=64 stages=3 grid_mult=2 (smem 72KB/CTA)"
+    },
+    "results": {
+      "round": 20,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:17 UTC",
+      "all_passed": true,
+      "avg_speedup": 18.96,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.1266636178493499,
+          "speedup": 18.959842267433494,
+          "max_abs_err": 333824.0,
+          "max_rel_err": 33382400524288.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 20 \u2014 medium GEMM2 BK=64 stages=3 grid_mult=2 (smem 72KB/CTA)\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:17 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.127 | 18.96x | PASSED |\n\n**Avg speedup**: 18.96x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_021_617b45e_small_gemm1_stages6-8_gemm2_stages8-",
+    "config": {
+      "round": 21,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:19 UTC",
+      "note": "small GEMM1 stages=6->8 GEMM2 stages=8->12 (deeper pipeline)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM1 stages=6->8 GEMM2 stages=8->12 (deeper pipeline)"
+    },
+    "results": {
+      "round": 21,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:19 UTC",
+      "all_passed": false,
+      "avg_speedup": 0.0,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "RUNTIME_ERROR",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": null,
+          "max_rel_err": null
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 21 \u2014 small GEMM1 stages=6->8 GEMM2 stages=8->12 (deeper pipeline)\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:19 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | N/A | N/A | RUNTIME_ERROR |\n\n**Avg speedup**: 0.00x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_022_617b45e_small_gemm1_stages6-8_only_smem_160kb",
+    "config": {
+      "round": 22,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:20 UTC",
+      "note": "small GEMM1 stages=6->8 only (smem 160KB/CTA)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM1 stages=6->8 only (smem 160KB/CTA)"
+    },
+    "results": {
+      "round": 22,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:20 UTC",
+      "all_passed": false,
+      "avg_speedup": 0.0,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "RUNTIME_ERROR",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": null,
+          "max_rel_err": null
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 22 \u2014 small GEMM1 stages=6->8 only (smem 160KB/CTA)\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:20 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | N/A | N/A | RUNTIME_ERROR |\n\n**Avg speedup**: 0.00x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_023_617b45e_small_stages6_gemm1_baseline_recheck",
+    "config": {
+      "round": 23,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:21 UTC",
+      "note": "small stages=6 GEMM1 baseline recheck",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small stages=6 GEMM1 baseline recheck"
+    },
+    "results": {
+      "round": 23,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:21 UTC",
+      "all_passed": true,
+      "avg_speedup": 16.5,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.9674689925909042,
+          "speedup": 16.499054824554502,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 665.181640625
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 23 \u2014 small stages=6 GEMM1 baseline recheck\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:21 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.967 | 16.50x | PASSED |\n\n**Avg speedup**: 16.50x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_024_617b45e_small_variance_check_round_2",
+    "config": {
+      "round": 24,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:22 UTC",
+      "note": "small variance check round 2",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small variance check round 2"
+    },
+    "results": {
+      "round": 24,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:22 UTC",
+      "all_passed": true,
+      "avg_speedup": 15.67,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 1.0411980179548261,
+          "speedup": 15.666888179556825,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 632.2725830078125
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 24 \u2014 small variance check round 2\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:22 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 1.041 | 15.67x | PASSED |\n\n**Avg speedup**: 15.67x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_025_617b45e_medium_verify_still_1919x",
+    "config": {
+      "round": 25,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:23 UTC",
+      "note": "medium verify still 19.19x",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium verify still 19.19x"
+    },
+    "results": {
+      "round": 25,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:23 UTC",
+      "all_passed": true,
+      "avg_speedup": 19.58,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.0950536947250367,
+          "speedup": 19.57759207009936,
+          "max_abs_err": 444416.0,
+          "max_rel_err": 44441599475712.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 25 \u2014 medium verify still 19.19x\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:23 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.095 | 19.58x | PASSED |\n\n**Avg speedup**: 19.58x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_026_617b45e_small_bk128-64_for_gemm2_also_both_bk",
+    "config": {
+      "round": 26,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:24 UTC",
+      "note": "small BK=128->64 for GEMM2 also (both BKs changed to 64 like medium)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small BK=128->64 for GEMM2 also (both BKs changed to 64 like medium)"
+    },
+    "results": {
+      "round": 26,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:24 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.22,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.9474286721944809,
+          "speedup": 17.21779812968195,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 87.09523010253906
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 26 \u2014 small BK=128->64 for GEMM2 also (both BKs changed to 64 like medium)\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:24 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.947 | 17.22x | PASSED |\n\n**Avg speedup**: 17.22x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_027_617b45e_small_gemm2_bk64-128_stages8-6_half",
+    "config": {
+      "round": 27,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:25 UTC",
+      "note": "small GEMM2 BK=64->128 stages=8->6 (half K iters, smem 192KB)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM2 BK=64->128 stages=8->6 (half K iters, smem 192KB)"
+    },
+    "results": {
+      "round": 27,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:25 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.93,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8896092804670334,
+          "speedup": 17.92545842227596,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 93.4941177368164
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 27 \u2014 small GEMM2 BK=64->128 stages=8->6 (half K iters, smem 192KB)\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:25 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.890 | 17.93x | PASSED |\n\n**Avg speedup**: 17.93x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_028_617b45e_small_gemm2_bk128_stages7_smem_224kb-",
+    "config": {
+      "round": 28,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:26 UTC",
+      "note": "small GEMM2 BK=128 stages=7 (smem 224KB/CTA, max pipeline)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM2 BK=128 stages=7 (smem 224KB/CTA, max pipeline)"
+    },
+    "results": {
+      "round": 28,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:26 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.74,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.9013482879400254,
+          "speedup": 17.744921365237836,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 588.9996337890625
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 28 \u2014 small GEMM2 BK=128 stages=7 (smem 224KB/CTA, max pipeline)\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:26 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.901 | 17.74x | PASSED |\n\n**Avg speedup**: 17.74x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_029_617b45e_small_gemm2_bk64_stages10_160kb-cta",
+    "config": {
+      "round": 29,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:27 UTC",
+      "note": "small GEMM2 BK=64 stages=10 (160KB/CTA)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM2 BK=64 stages=10 (160KB/CTA)"
+    },
+    "results": {
+      "round": 29,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:27 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.63,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.9044492800235748,
+          "speedup": 17.62756088049229,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 89843752.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 29 \u2014 small GEMM2 BK=64 stages=10 (160KB/CTA)\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:27 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.904 | 17.63x | PASSED |\n\n**Avg speedup**: 17.63x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_030_617b45e_small_gemm1_stages7_gemm2_bk128_stages",
+    "config": {
+      "round": 30,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:28 UTC",
+      "note": "small GEMM1 stages=7 GEMM2 BK=128 stages=6 combo",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM1 stages=7 GEMM2 BK=128 stages=6 combo"
+    },
+    "results": {
+      "round": 30,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:28 UTC",
+      "all_passed": true,
+      "avg_speedup": 18.89,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8328104325532915,
+          "speedup": 18.887034789272448,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 3669.17236328125
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 30 \u2014 small GEMM1 stages=7 GEMM2 BK=128 stages=6 combo\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:28 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.833 | 18.89x | PASSED |\n\n**Avg speedup**: 18.89x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_031_617b45e_small_gemm1_s7_gemm2_bk128_s6_confirmat",
+    "config": {
+      "round": 31,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:29 UTC",
+      "note": "small GEMM1 s7 GEMM2 BK=128 s6 confirmation",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM1 s7 GEMM2 BK=128 s6 confirmation"
+    },
+    "results": {
+      "round": 31,
+      "commit": "617b45e",
+      "ts": "2026-03-30 00:29 UTC",
+      "all_passed": true,
+      "avg_speedup": 18.18,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8695294709205628,
+          "speedup": 18.175450456236778,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 234.8651123046875
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 31 \u2014 small GEMM1 s7 GEMM2 BK=128 s6 confirmation\n\n**Commit**: 617b45e\n**Date**: 2026-03-30 00:29 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.870 | 18.18x | PASSED |\n\n**Avg speedup**: 18.18x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_032_9c36d7e_small_gemm1_stages8_test_160kb-cta_wi",
+    "config": {
+      "round": 32,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 00:30 UTC",
+      "note": "small GEMM1 stages=8 test (160KB/CTA) with GEMM2 BK=128 s6",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM1 stages=8 test (160KB/CTA) with GEMM2 BK=128 s6"
+    },
+    "results": {
+      "round": 32,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 00:30 UTC",
+      "all_passed": false,
+      "avg_speedup": 0.0,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "RUNTIME_ERROR",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": null,
+          "max_rel_err": null
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 32 \u2014 small GEMM1 stages=8 test (160KB/CTA) with GEMM2 BK=128 s6\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 00:30 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | N/A | N/A | RUNTIME_ERROR |\n\n**Avg speedup**: 0.00x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_033_9c36d7e_small_gemm1_s7_gemm2_bk128_stages7_22",
+    "config": {
+      "round": 33,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 00:31 UTC",
+      "note": "small GEMM1 s7 GEMM2 BK=128 stages=7 (224KB, max depth)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM1 s7 GEMM2 BK=128 stages=7 (224KB, max depth)"
+    },
+    "results": {
+      "round": 33,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 00:31 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.45,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.9105573117733001,
+          "speedup": 17.445873607341344,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 300.1999816894531
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 33 \u2014 small GEMM1 s7 GEMM2 BK=128 stages=7 (224KB, max depth)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 00:31 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.911 | 17.45x | PASSED |\n\n**Avg speedup**: 17.45x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_034_9c36d7e_small_gemm2_bk64_stages6_control_vs_b",
+    "config": {
+      "round": 34,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 00:32 UTC",
+      "note": "small GEMM2 BK=64 stages=6 control (vs BK=128 s6)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM2 BK=64 stages=6 control (vs BK=128 s6)"
+    },
+    "results": {
+      "round": 34,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 00:32 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.87,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8802021766901016,
+          "speedup": 17.865816863294405,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 96.71680450439453
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 34 \u2014 small GEMM2 BK=64 stages=6 control (vs BK=128 s6)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 00:32 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.880 | 17.87x | PASSED |\n\n**Avg speedup**: 17.87x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_035_9c36d7e_tiny_gemm1_stages2-5_gemm2_stages2-5",
+    "config": {
+      "round": 35,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 00:33 UTC",
+      "note": "tiny GEMM1 stages=2->5 GEMM2 stages=2->5 (deeper pipeline)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "tiny GEMM1 stages=2->5 GEMM2 stages=2->5 (deeper pipeline)"
+    },
+    "results": {
+      "round": 35,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 00:33 UTC",
+      "all_passed": true,
+      "avg_speedup": 18.53,
+      "workloads": [
+        {
+          "uuid": "e05c6c03",
+          "tier": "tiny",
+          "seq": 1,
+          "status": "PASSED",
+          "lat_ms": 0.5944910086393357,
+          "speedup": 18.53204922957078,
+          "max_abs_err": 2048.0,
+          "max_rel_err": 8.180723190307617
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 35 \u2014 tiny GEMM1 stages=2->5 GEMM2 stages=2->5 (deeper pipeline)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 00:33 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.594 | 18.53x | PASSED |\n\n**Avg speedup**: 18.53x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_036_9c36d7e_large_gemm2_bk64_grid_mult2-3_stages",
+    "config": {
+      "round": 36,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 00:35 UTC",
+      "note": "large GEMM2 BK=64 grid_mult=2->3 stages=4->3 (3CTAs/SM 216KB)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large GEMM2 BK=64 grid_mult=2->3 stages=4->3 (3CTAs/SM 216KB)"
+    },
+    "results": {
+      "round": 36,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 00:35 UTC",
+      "all_passed": true,
+      "avg_speedup": 8.19,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 5.512138504981995,
+          "speedup": 8.193681834399118,
+          "max_abs_err": 667648.0,
+          "max_rel_err": 66764801048576.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 36 \u2014 large GEMM2 BK=64 grid_mult=2->3 stages=4->3 (3CTAs/SM 216KB)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 00:35 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 5.512 | 8.19x | PASSED |\n\n**Avg speedup**: 8.19x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_037_9c36d7e_large_gemm1_stages3-4_96kb-cta_2ctas",
+    "config": {
+      "round": 37,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:05 UTC",
+      "note": "large GEMM1 stages=3->4 (96KB/CTA, 2CTAs=192KB<232KB)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large GEMM1 stages=3->4 (96KB/CTA, 2CTAs=192KB<232KB)"
+    },
+    "results": {
+      "round": 37,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:05 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.1,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.9460810241699225,
+          "speedup": 9.10040684522127,
+          "max_abs_err": 573440.0,
+          "max_rel_err": 54886402097152.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 37 \u2014 large GEMM1 stages=3->4 (96KB/CTA, 2CTAs=192KB<232KB)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:05 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.946 | 9.10x | PASSED |\n\n**Avg speedup**: 9.10x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_038_9c36d7e_large_gemm1_stages4_confirmation_run",
+    "config": {
+      "round": 38,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:06 UTC",
+      "note": "large GEMM1 stages=4 confirmation run",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large GEMM1 stages=4 confirmation run"
+    },
+    "results": {
+      "round": 38,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:06 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.17,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.9223339519500735,
+          "speedup": 9.166766417551893,
+          "max_abs_err": 505856.0,
+          "max_rel_err": 50585600524288.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 38 \u2014 large GEMM1 stages=4 confirmation run\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:06 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.922 | 9.17x | PASSED |\n\n**Avg speedup**: 9.17x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_039_9c36d7e_all-tier_score_check_after_mediumsmall_",
+    "config": {
+      "round": 39,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:08 UTC",
+      "note": "all-tier score check after medium+small improvements",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "all-tier score check after medium+small improvements"
+    },
+    "results": {
+      "round": 39,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:08 UTC",
+      "all_passed": true,
+      "avg_speedup": 15.92,
+      "workloads": [
+        {
+          "uuid": "e05c6c03",
+          "tier": "tiny",
+          "seq": 1,
+          "status": "PASSED",
+          "lat_ms": 0.6288074882030487,
+          "speedup": 17.71645894373676,
+          "max_abs_err": 2048.0,
+          "max_rel_err": 15.13654613494873
+        },
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.9145291522741317,
+          "speedup": 17.41964220684656,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 169.61537170410156
+        },
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.0876553623676302,
+          "speedup": 19.411295615351683,
+          "max_abs_err": 327680.0,
+          "max_rel_err": 30720001048576.0
+        },
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.948946241378784,
+          "speedup": 9.134499639807617,
+          "max_abs_err": 585728.0,
+          "max_rel_err": 58572801048576.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 39 \u2014 all-tier score check after medium+small improvements\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:08 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.629 | 17.72x | PASSED |\n| small | 80 | 0.915 | 17.42x | PASSED |\n| medium | 901 | 1.088 | 19.41x | PASSED |\n| large | 14107 | 4.949 | 9.13x | PASSED |\n\n**Avg speedup**: 15.92x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_040_9c36d7e_small_gemm2_bk256_stages3_28_k-iters",
+    "config": {
+      "round": 40,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:12 UTC",
+      "note": "small GEMM2 BK=256 stages=3 (28 K-iters, 192KB/CTA)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM2 BK=256 stages=3 (28 K-iters, 192KB/CTA)"
+    },
+    "results": {
+      "round": 40,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:12 UTC",
+      "all_passed": false,
+      "avg_speedup": 0.0,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "INCORRECT_NUMERICAL",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": 921600.0,
+          "max_rel_err": 844380.4375
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 40 \u2014 small GEMM2 BK=256 stages=3 (28 K-iters, 192KB/CTA)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:12 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | N/A | N/A | INCORRECT_NUMERICAL |\n\n**Avg speedup**: 0.00x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_041_9c36d7e_large_gemm1_half_n128-64_bn1256-128_",
+    "config": {
+      "round": 41,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:14 UTC",
+      "note": "large GEMM1 HALF_N=128->64 BN1=256->128 (halve acc regs, 2x N-tiles)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large GEMM1 HALF_N=128->64 BN1=256->128 (halve acc regs, 2x N-tiles)"
+    },
+    "results": {
+      "round": 41,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:14 UTC",
+      "all_passed": false,
+      "avg_speedup": 0.0,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "INCORRECT_NUMERICAL",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": 1724416.0,
+          "max_rel_err": 45875200000000.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 41 \u2014 large GEMM1 HALF_N=128->64 BN1=256->128 (halve acc regs, 2x N-tiles)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:14 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | N/A | N/A | INCORRECT_NUMERICAL |\n\n**Avg speedup**: 0.00x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_042_9c36d7e_medium_gemm2_bm64-128_stages4-2_319",
+    "config": {
+      "round": 42,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:17 UTC",
+      "note": "medium GEMM2 BM=64->128 stages=4->2 (3192 tiles vs 6328, 80KB/CTA)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium GEMM2 BM=64->128 stages=4->2 (3192 tiles vs 6328, 80KB/CTA)"
+    },
+    "results": {
+      "round": 42,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:17 UTC",
+      "all_passed": true,
+      "avg_speedup": 13.91,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.510046401500702,
+          "speedup": 13.912336306743006,
+          "max_abs_err": 317440.0,
+          "max_rel_err": 29286400524288.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 42 \u2014 medium GEMM2 BM=64->128 stages=4->2 (3192 tiles vs 6328, 80KB/CTA)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:17 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.510 | 13.91x | PASSED |\n\n**Avg speedup**: 13.91x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_043_9c36d7e_medium_gemm1_bk128-64_stages4-8_dee",
+    "config": {
+      "round": 43,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:18 UTC",
+      "note": "medium GEMM1 BK=128->64 stages=4->8 (deeper pipeline 96KB/CTA 2CTAs)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium GEMM1 BK=128->64 stages=4->8 (deeper pipeline 96KB/CTA 2CTAs)"
+    },
+    "results": {
+      "round": 43,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:18 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.47,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.2131996164321899,
+          "speedup": 17.474124558242288,
+          "max_abs_err": 569856.0,
+          "max_rel_err": 29491200000000.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 43 \u2014 medium GEMM1 BK=128->64 stages=4->8 (deeper pipeline 96KB/CTA 2CTAs)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:18 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.213 | 17.47x | PASSED |\n\n**Avg speedup**: 17.47x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_044_9c36d7e_small_gemm2_bk128_stages6-3_grid_mult",
+    "config": {
+      "round": 44,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:20 UTC",
+      "note": "small GEMM2 BK=128 stages=6->3 grid_mult=1->2 (2CTAs/SM, 192KB)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM2 BK=128 stages=6->3 grid_mult=1->2 (2CTAs/SM, 192KB)"
+    },
+    "results": {
+      "round": 44,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:20 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.15,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.9293628149032592,
+          "speedup": 17.148913516413902,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 2368.9990234375
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 44 \u2014 small GEMM2 BK=128 stages=6->3 grid_mult=1->2 (2CTAs/SM, 192KB)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:20 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.929 | 17.15x | PASSED |\n\n**Avg speedup**: 17.15x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_045_9c36d7e_final_all-tier_score_after_mediumsmall_",
+    "config": {
+      "round": 45,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:22 UTC",
+      "note": "final all-tier score after medium+small improvements",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "final all-tier score after medium+small improvements"
+    },
+    "results": {
+      "round": 45,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:22 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.04,
+      "workloads": [
+        {
+          "uuid": "e05c6c03",
+          "tier": "tiny",
+          "seq": 1,
+          "status": "PASSED",
+          "lat_ms": 0.5454461444616318,
+          "speedup": 20.194605599523904,
+          "max_abs_err": 2048.0,
+          "max_rel_err": 3.7804877758026123
+        },
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8642723845243454,
+          "speedup": 18.338748996080156,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 533.3999633789062
+        },
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.030552831172943,
+          "speedup": 20.488916693457906,
+          "max_abs_err": 380928.0,
+          "max_rel_err": 38092798951424.0
+        },
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.9331181478500366,
+          "speedup": 9.14140049387412,
+          "max_abs_err": 528384.0,
+          "max_rel_err": 48332802097152.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 45 \u2014 final all-tier score after medium+small improvements\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:22 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.545 | 20.19x | PASSED |\n| small | 80 | 0.864 | 18.34x | PASSED |\n| medium | 901 | 1.031 | 20.49x | PASSED |\n| large | 14107 | 4.933 | 9.14x | PASSED |\n\n**Avg speedup**: 17.04x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_046_9c36d7e_small_gemm2_bm32-64_stages4_diff_bm_",
+    "config": {
+      "round": 46,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:24 UTC",
+      "note": "small GEMM2 BM=32->64 stages=4 (diff BM tilemap, 560 tiles vs 1120)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM2 BM=32->64 stages=4 (diff BM tilemap, 560 tiles vs 1120)"
+    },
+    "results": {
+      "round": 46,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:24 UTC",
+      "all_passed": true,
+      "avg_speedup": 13.97,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 1.1260723192691802,
+          "speedup": 13.967505276010925,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 167.86744689941406
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 46 \u2014 small GEMM2 BM=32->64 stages=4 (diff BM tilemap, 560 tiles vs 1120)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:24 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 1.126 | 13.97x | PASSED |\n\n**Avg speedup**: 13.97x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_047_9c36d7e_small_gemm2_bk64_stages4_grid_mult2_",
+    "config": {
+      "round": 47,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:26 UTC",
+      "note": "small GEMM2 BK=64 stages=4 grid_mult=2 (2CTAs/SM 128KB)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM2 BK=64 stages=4 grid_mult=2 (2CTAs/SM 128KB)"
+    },
+    "results": {
+      "round": 47,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:26 UTC",
+      "all_passed": true,
+      "avg_speedup": 18.53,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8496965116262436,
+          "speedup": 18.528617867463446,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 723.3634643554688
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 47 \u2014 small GEMM2 BK=64 stages=4 grid_mult=2 (2CTAs/SM 128KB)\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:26 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.850 | 18.53x | PASSED |\n\n**Avg speedup**: 18.53x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_048_9c36d7e_small_gemm2_bk64_stages4_grid_mult2_c",
+    "config": {
+      "round": 48,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:27 UTC",
+      "note": "small GEMM2 BK=64 stages=4 grid_mult=2 confirmation",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM2 BK=64 stages=4 grid_mult=2 confirmation"
+    },
+    "results": {
+      "round": 48,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:27 UTC",
+      "all_passed": true,
+      "avg_speedup": 18.23,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8749192959070206,
+          "speedup": 18.229382407153363,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 299.1265563964844
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 48 \u2014 small GEMM2 BK=64 stages=4 grid_mult=2 confirmation\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:27 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.875 | 18.23x | PASSED |\n\n**Avg speedup**: 18.23x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_049_9c36d7e_small_gemm1_s6_gemm2_bk64_s4_gm2_combo",
+    "config": {
+      "round": 49,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:28 UTC",
+      "note": "small GEMM1 s6 GEMM2 BK=64 s4 gm2 combo",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small GEMM1 s6 GEMM2 BK=64 s4 gm2 combo"
+    },
+    "results": {
+      "round": 49,
+      "commit": "9c36d7e",
+      "ts": "2026-03-30 04:28 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.53,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.9040124810934067,
+          "speedup": 17.533776109088727,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 280.9998779296875
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 49 \u2014 small GEMM1 s6 GEMM2 BK=64 s4 gm2 combo\n\n**Commit**: 9c36d7e\n**Date**: 2026-03-30 04:28 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.904 | 17.53x | PASSED |\n\n**Avg speedup**: 17.53x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_050_8b9d15c_large_reduce_block_h256-512_14_blocks",
+    "config": {
+      "round": 50,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:30 UTC",
+      "note": "large reduce BLOCK_H=256->512 (14 blocks vs 28)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large reduce BLOCK_H=256->512 (14 blocks vs 28)"
+    },
+    "results": {
+      "round": 50,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:30 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.35,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.817507703781128,
+          "speedup": 9.352665597446942,
+          "max_abs_err": 481280.0,
+          "max_rel_err": 45875200000000.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 50 \u2014 large reduce BLOCK_H=256->512 (14 blocks vs 28)\n\n**Commit**: 8b9d15c\n**Date**: 2026-03-30 04:30 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.818 | 9.35x | PASSED |\n\n**Avg speedup**: 9.35x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_051_8b9d15c_large_reduce_block_h512_confirmation",
+    "config": {
+      "round": 51,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:31 UTC",
+      "note": "large reduce BLOCK_H=512 confirmation",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large reduce BLOCK_H=512 confirmation"
+    },
+    "results": {
+      "round": 51,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:31 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.37,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.802051702499389,
+          "speedup": 9.368029971685397,
+          "max_abs_err": 468992.0,
+          "max_rel_err": 44851198427136.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 51 \u2014 large reduce BLOCK_H=512 confirmation\n\n**Commit**: 8b9d15c\n**Date**: 2026-03-30 04:31 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.802 | 9.37x | PASSED |\n\n**Avg speedup**: 9.37x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_052_8b9d15c_large_reduce_block_h1024_7_blocks",
+    "config": {
+      "round": 52,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:32 UTC",
+      "note": "large reduce BLOCK_H=1024 (7 blocks)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large reduce BLOCK_H=1024 (7 blocks)"
+    },
+    "results": {
+      "round": 52,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:32 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.49,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.719775157928467,
+          "speedup": 9.485009600712788,
+          "max_abs_err": 581632.0,
+          "max_rel_err": 50176001572864.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 52 \u2014 large reduce BLOCK_H=1024 (7 blocks)\n\n**Commit**: 8b9d15c\n**Date**: 2026-03-30 04:32 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.720 | 9.49x | PASSED |\n\n**Avg speedup**: 9.49x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_053_8b9d15c_large_reduce_block_h1024_confirmation",
+    "config": {
+      "round": 53,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:33 UTC",
+      "note": "large reduce BLOCK_H=1024 confirmation",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large reduce BLOCK_H=1024 confirmation"
+    },
+    "results": {
+      "round": 53,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:33 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.72,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.502458885192871,
+          "speedup": 9.719889431618913,
+          "max_abs_err": 518144.0,
+          "max_rel_err": 44441599475712.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 53 \u2014 large reduce BLOCK_H=1024 confirmation\n\n**Commit**: 8b9d15c\n**Date**: 2026-03-30 04:33 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.502 | 9.72x | PASSED |\n\n**Avg speedup**: 9.72x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_054_8b9d15c_large_reduce_block_h3584_2_blocks_716",
+    "config": {
+      "round": 54,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:35 UTC",
+      "note": "large reduce BLOCK_H=3584 (2 blocks, 7168/2)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large reduce BLOCK_H=3584 (2 blocks, 7168/2)"
+    },
+    "results": {
+      "round": 54,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:35 UTC",
+      "all_passed": false,
+      "avg_speedup": 0.0,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "RUNTIME_ERROR",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": null,
+          "max_rel_err": null
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 54 \u2014 large reduce BLOCK_H=3584 (2 blocks, 7168/2)\n\n**Commit**: 8b9d15c\n**Date**: 2026-03-30 04:35 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | N/A | N/A | RUNTIME_ERROR |\n\n**Avg speedup**: 0.00x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_055_8b9d15c_large_reduce_block_h1792_4_blocks",
+    "config": {
+      "round": 55,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:36 UTC",
+      "note": "large reduce BLOCK_H=1792 (4 blocks)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large reduce BLOCK_H=1792 (4 blocks)"
+    },
+    "results": {
+      "round": 55,
+      "commit": "8b9d15c",
+      "ts": "2026-03-30 04:36 UTC",
+      "all_passed": false,
+      "avg_speedup": 0.0,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "RUNTIME_ERROR",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": null,
+          "max_rel_err": null
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 55 \u2014 large reduce BLOCK_H=1792 (4 blocks)\n\n**Commit**: 8b9d15c\n**Date**: 2026-03-30 04:36 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | N/A | N/A | RUNTIME_ERROR |\n\n**Avg speedup**: 0.00x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_056_1e4e786_all-tier_score_after_large_reduce_block_",
+    "config": {
+      "round": 56,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:38 UTC",
+      "note": "all-tier score after large reduce BLOCK_H=1024 improvement",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "all-tier score after large reduce BLOCK_H=1024 improvement"
+    },
+    "results": {
+      "round": 56,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:38 UTC",
+      "all_passed": true,
+      "avg_speedup": 16.3,
+      "workloads": [
+        {
+          "uuid": "e05c6c03",
+          "tier": "tiny",
+          "seq": 1,
+          "status": "PASSED",
+          "lat_ms": 0.5641672950983048,
+          "speedup": 19.558989860006086,
+          "max_abs_err": 2048.0,
+          "max_rel_err": 5.537142753601074
+        },
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.871284991621971,
+          "speedup": 18.152828070727256,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 1614.9959716796875
+        },
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.1694346878528594,
+          "speedup": 18.045297606938547,
+          "max_abs_err": 337920.0,
+          "max_rel_err": 33791999475712.0
+        },
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.7861440620422355,
+          "speedup": 9.441220940113825,
+          "max_abs_err": 737280.0,
+          "max_rel_err": 51814401572864.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 56 \u2014 all-tier score after large reduce BLOCK_H=1024 improvement\n\n**Commit**: 1e4e786\n**Date**: 2026-03-30 04:38 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.564 | 19.56x | PASSED |\n| small | 80 | 0.871 | 18.15x | PASSED |\n| medium | 901 | 1.169 | 18.05x | PASSED |\n| large | 14107 | 4.786 | 9.44x | PASSED |\n\n**Avg speedup**: 16.30x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_057_1e4e786_medium_reduce_scatter_add-_launch_reduc",
+    "config": {
+      "round": 57,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:39 UTC",
+      "note": "medium reduce scatter_add->_launch_reduce BLOCK_H=1024",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium reduce scatter_add->_launch_reduce BLOCK_H=1024"
+    },
+    "results": {
+      "round": 57,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:39 UTC",
+      "all_passed": true,
+      "avg_speedup": 19.64,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.0872369285821915,
+          "speedup": 19.644222680622875,
+          "max_abs_err": 378880.0,
+          "max_rel_err": 25804801048576.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 57 \u2014 medium reduce scatter_add->_launch_reduce BLOCK_H=1024\n\n**Commit**: 1e4e786\n**Date**: 2026-03-30 04:39 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.087 | 19.64x | PASSED |\n\n**Avg speedup**: 19.64x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_058_1e4e786_medium_reduce__launch_reduce_bh1024_con",
+    "config": {
+      "round": 58,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:40 UTC",
+      "note": "medium reduce _launch_reduce BH=1024 confirmation",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium reduce _launch_reduce BH=1024 confirmation"
+    },
+    "results": {
+      "round": 58,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:40 UTC",
+      "all_passed": true,
+      "avg_speedup": 19.61,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.068859519958496,
+          "speedup": 19.611690175463803,
+          "max_abs_err": 401408.0,
+          "max_rel_err": 40140802097152.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 58 \u2014 medium reduce _launch_reduce BH=1024 confirmation\n\n**Commit**: 1e4e786\n**Date**: 2026-03-30 04:40 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.069 | 19.61x | PASSED |\n\n**Avg speedup**: 19.61x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_059_1e4e786_medium_reduce_scatter_add_control_vs__l",
+    "config": {
+      "round": 59,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:41 UTC",
+      "note": "medium reduce scatter_add control (vs _launch_reduce)",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium reduce scatter_add control (vs _launch_reduce)"
+    },
+    "results": {
+      "round": 59,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:41 UTC",
+      "all_passed": true,
+      "avg_speedup": 22.97,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 0.865347967505455,
+          "speedup": 22.969088057399034,
+          "max_abs_err": 382976.0,
+          "max_rel_err": 38297598427136.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 59 \u2014 medium reduce scatter_add control (vs _launch_reduce)\n\n**Commit**: 1e4e786\n**Date**: 2026-03-30 04:41 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 0.865 | 22.97x | PASSED |\n\n**Avg speedup**: 22.97x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_060_1e4e786_medium_scatter_add_confirmation_2",
+    "config": {
+      "round": 60,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:42 UTC",
+      "note": "medium scatter_add confirmation 2",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "medium scatter_add confirmation 2"
+    },
+    "results": {
+      "round": 60,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:42 UTC",
+      "all_passed": true,
+      "avg_speedup": 19.49,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.0790849273204803,
+          "speedup": 19.494467759186527,
+          "max_abs_err": 569344.0,
+          "max_rel_err": 34201600524288.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 60 \u2014 medium scatter_add confirmation 2\n\n**Commit**: 1e4e786\n**Date**: 2026-03-30 04:42 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.079 | 19.49x | PASSED |\n\n**Avg speedup**: 19.49x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_061_1e4e786_small_committed_state_measurement_from_s",
+    "config": {
+      "round": 61,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:43 UTC",
+      "note": "small committed state measurement from same instance as medium",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small committed state measurement from same instance as medium"
+    },
+    "results": {
+      "round": 61,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:43 UTC",
+      "all_passed": true,
+      "avg_speedup": 16.8,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.9387639048099518,
+          "speedup": 16.802209929382364,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 958.999755859375
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 61 \u2014 small committed state measurement from same instance as medium\n\n**Commit**: 1e4e786\n**Date**: 2026-03-30 04:43 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.939 | 16.80x | PASSED |\n\n**Avg speedup**: 16.80x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_062_1e4e786_small_reduce__launch_reduce_bh1024_vs_s",
+    "config": {
+      "round": 62,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:44 UTC",
+      "note": "small reduce _launch_reduce BH=1024 vs scatter_add",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "small reduce _launch_reduce BH=1024 vs scatter_add"
+    },
+    "results": {
+      "round": 62,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:44 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.09,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.9265702399015426,
+          "speedup": 17.09271305868001,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 313.11029052734375
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 62 \u2014 small reduce _launch_reduce BH=1024 vs scatter_add\n\n**Commit**: 1e4e786\n**Date**: 2026-03-30 04:44 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.927 | 17.09x | PASSED |\n\n**Avg speedup**: 17.09x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_063_1e4e786_large_gemm1_stages4_with_bh1024_reduce",
+    "config": {
+      "round": 63,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:46 UTC",
+      "note": "large GEMM1 stages=4 with BH=1024 reduce",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large GEMM1 stages=4 with BH=1024 reduce"
+    },
+    "results": {
+      "round": 63,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:46 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.52,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.729572411537171,
+          "speedup": 9.52337346837181,
+          "max_abs_err": 552960.0,
+          "max_rel_err": 49971202097152.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 63 \u2014 large GEMM1 stages=4 with BH=1024 reduce\n\n**Commit**: 1e4e786\n**Date**: 2026-03-30 04:46 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.730 | 9.52x | PASSED |\n\n**Avg speedup**: 9.52x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_064_1e4e786_large_gemm1_stages4_bh1024_confirmatio",
+    "config": {
+      "round": 64,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:47 UTC",
+      "note": "large GEMM1 stages=4 BH=1024 confirmation",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "large GEMM1 stages=4 BH=1024 confirmation"
+    },
+    "results": {
+      "round": 64,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:47 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.51,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.735838207244873,
+          "speedup": 9.506622991369328,
+          "max_abs_err": 544768.0,
+          "max_rel_err": 46899201572864.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 64 \u2014 large GEMM1 stages=4 BH=1024 confirmation\n\n**Commit**: 1e4e786\n**Date**: 2026-03-30 04:47 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.736 | 9.51x | PASSED |\n\n**Avg speedup**: 9.51x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_065_1e4e786_all-tier_final_check_gemm1_s4__bh1024",
+    "config": {
+      "round": 65,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:48 UTC",
+      "note": "all-tier final check: GEMM1 s4 + BH=1024 large reduce",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": "all-tier final check: GEMM1 s4 + BH=1024 large reduce"
+    },
+    "results": {
+      "round": 65,
+      "commit": "1e4e786",
+      "ts": "2026-03-30 04:48 UTC",
+      "all_passed": true,
+      "avg_speedup": 16.29,
+      "workloads": [
+        {
+          "uuid": "e05c6c03",
+          "tier": "tiny",
+          "seq": 1,
+          "status": "PASSED",
+          "lat_ms": 0.6097590411901475,
+          "speedup": 18.36024942112695,
+          "max_abs_err": 2048.0,
+          "max_rel_err": 6.584415435791016
+        },
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.9014810893535614,
+          "speedup": 17.689872190438578,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 429.4442138671875
+        },
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.0807347831726075,
+          "speedup": 19.529323681025623,
+          "max_abs_err": 336384.0,
+          "max_rel_err": 28876799475712.0
+        },
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.718673144340515,
+          "speedup": 9.570701431629645,
+          "max_abs_err": 557056.0,
+          "max_rel_err": 48537601572864.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 65 \u2014 all-tier final check: GEMM1 s4 + BH=1024 large reduce\n\n**Commit**: 1e4e786\n**Date**: 2026-03-30 04:48 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.610 | 18.36x | PASSED |\n| small | 80 | 0.901 | 17.69x | PASSED |\n| medium | 901 | 1.081 | 19.53x | PASSED |\n| large | 14107 | 4.719 | 9.57x | PASSED |\n\n**Avg speedup**: 16.29x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_066_e354cad_run",
+    "config": {
+      "round": 66,
+      "commit": "e354cad",
+      "ts": "2026-03-30 04:55 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 66,
+      "commit": "e354cad",
+      "ts": "2026-03-30 04:55 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.75,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.485411021232605,
+          "speedup": 9.745583659937582,
+          "max_abs_err": 532480.0,
+          "max_rel_err": 51814401572864.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 66 \u2014 Run\n\n**Commit**: e354cad\n**Date**: 2026-03-30 04:55 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.485 | 9.75x | PASSED |\n\n**Avg speedup**: 9.75x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_067_e354cad_run",
+    "config": {
+      "round": 67,
+      "commit": "e354cad",
+      "ts": "2026-03-30 04:56 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 67,
+      "commit": "e354cad",
+      "ts": "2026-03-30 04:56 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.6,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.726924173355103,
+          "speedup": 9.59616270258917,
+          "max_abs_err": 557056.0,
+          "max_rel_err": 46079999475712.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 67 \u2014 Run\n\n**Commit**: e354cad\n**Date**: 2026-03-30 04:56 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.727 | 9.60x | PASSED |\n\n**Avg speedup**: 9.60x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_068_0224ca5_run",
+    "config": {
+      "round": 68,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 04:57 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 68,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 04:57 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.62,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8933128317594529,
+          "speedup": 17.617469423366874,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 706.9995727539062
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 68 \u2014 Run\n\n**Commit**: 0224ca5\n**Date**: 2026-03-30 04:57 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.893 | 17.62x | PASSED |\n\n**Avg speedup**: 17.62x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_069_0224ca5_run",
+    "config": {
+      "round": 69,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 04:58 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 69,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 04:58 UTC",
+      "all_passed": true,
+      "avg_speedup": 17.78,
+      "workloads": [
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8866118404865265,
+          "speedup": 17.77802865791718,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 138.79722595214844
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 69 \u2014 Run\n\n**Commit**: 0224ca5\n**Date**: 2026-03-30 04:58 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| small | 80 | 0.887 | 17.78x | PASSED |\n\n**Avg speedup**: 17.78x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_070_0224ca5_run",
+    "config": {
+      "round": 70,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:03 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 70,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:03 UTC",
+      "all_passed": true,
+      "avg_speedup": 14.52,
+      "workloads": [
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.4435355541706085,
+          "speedup": 14.520761070262267,
+          "max_abs_err": 430080.0,
+          "max_rel_err": 43007998951424.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 70 \u2014 Run\n\n**Commit**: 0224ca5\n**Date**: 2026-03-30 05:03 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| medium | 901 | 1.444 | 14.52x | PASSED |\n\n**Avg speedup**: 14.52x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_071_0224ca5_run",
+    "config": {
+      "round": 71,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:05 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 71,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:05 UTC",
+      "all_passed": true,
+      "avg_speedup": 20.55,
+      "workloads": [
+        {
+          "uuid": "e05c6c03",
+          "tier": "tiny",
+          "seq": 1,
+          "status": "PASSED",
+          "lat_ms": 0.38708415991067885,
+          "speedup": 27.320642018566097,
+          "max_abs_err": 2048.0,
+          "max_rel_err": 3.7819550037384033
+        },
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.6909285126924515,
+          "speedup": 21.950680058162327,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 205.6788787841797
+        },
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 0.8759218556880951,
+          "speedup": 23.19509471372885,
+          "max_abs_err": 403456.0,
+          "max_rel_err": 40345601572864.0
+        },
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.519924227714538,
+          "speedup": 9.751253183398454,
+          "max_abs_err": 569344.0,
+          "max_rel_err": 56934401048576.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 71 \u2014 Run\n\n**Commit**: 0224ca5\n**Date**: 2026-03-30 05:05 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.387 | 27.32x | PASSED |\n| small | 80 | 0.691 | 21.95x | PASSED |\n| medium | 901 | 0.876 | 23.20x | PASSED |\n| large | 14107 | 4.520 | 9.75x | PASSED |\n\n**Avg speedup**: 20.55x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_072_0224ca5_run",
+    "config": {
+      "round": 72,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:07 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 72,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:07 UTC",
+      "all_passed": true,
+      "avg_speedup": 16.88,
+      "workloads": [
+        {
+          "uuid": "e05c6c03",
+          "tier": "tiny",
+          "seq": 1,
+          "status": "PASSED",
+          "lat_ms": 0.5538333441019059,
+          "speedup": 19.70090166094327,
+          "max_abs_err": 2048.0,
+          "max_rel_err": 5.7848100662231445
+        },
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8611267845630646,
+          "speedup": 18.149143730553178,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 246.74188232421875
+        },
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.041215359210968,
+          "speedup": 20.021650866555653,
+          "max_abs_err": 345600.0,
+          "max_rel_err": 29491200000000.0
+        },
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.657890436172485,
+          "speedup": 9.634524786408774,
+          "max_abs_err": 552960.0,
+          "max_rel_err": 50380801048576.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 72 \u2014 Run\n\n**Commit**: 0224ca5\n**Date**: 2026-03-30 05:07 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.554 | 19.70x | PASSED |\n| small | 80 | 0.861 | 18.15x | PASSED |\n| medium | 901 | 1.041 | 20.02x | PASSED |\n| large | 14107 | 4.658 | 9.63x | PASSED |\n\n**Avg speedup**: 16.88x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_073_0224ca5_run",
+    "config": {
+      "round": 73,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:08 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 73,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:08 UTC",
+      "all_passed": true,
+      "avg_speedup": 16.47,
+      "workloads": [
+        {
+          "uuid": "e05c6c03",
+          "tier": "tiny",
+          "seq": 1,
+          "status": "PASSED",
+          "lat_ms": 0.593484608411789,
+          "speedup": 18.82351523147589,
+          "max_abs_err": 2048.0,
+          "max_rel_err": 4.615384578704834
+        },
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8982319995164871,
+          "speedup": 17.74408244936781,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 422.9999694824219
+        },
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.066099647283554,
+          "speedup": 19.744496316896342,
+          "max_abs_err": 370176.0,
+          "max_rel_err": 29286400524288.0
+        },
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.707879495620728,
+          "speedup": 9.583496309162632,
+          "max_abs_err": 491520.0,
+          "max_rel_err": 45875200000000.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 73 \u2014 Run\n\n**Commit**: 0224ca5\n**Date**: 2026-03-30 05:08 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.593 | 18.82x | PASSED |\n| small | 80 | 0.898 | 17.74x | PASSED |\n| medium | 901 | 1.066 | 19.74x | PASSED |\n| large | 14107 | 4.708 | 9.58x | PASSED |\n\n**Avg speedup**: 16.47x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_074_0224ca5_run",
+    "config": {
+      "round": 74,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:10 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 74,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:10 UTC",
+      "all_passed": true,
+      "avg_speedup": 16.58,
+      "workloads": [
+        {
+          "uuid": "e05c6c03",
+          "tier": "tiny",
+          "seq": 1,
+          "status": "PASSED",
+          "lat_ms": 0.5688624640703202,
+          "speedup": 19.204907120115564,
+          "max_abs_err": 2048.0,
+          "max_rel_err": 4.4243903160095215
+        },
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8800613757371902,
+          "speedup": 17.760883360136077,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 674.9207153320312
+        },
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.0529508485794068,
+          "speedup": 19.771707306581003,
+          "max_abs_err": 374784.0,
+          "max_rel_err": 37478400524288.0
+        },
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.669846976280213,
+          "speedup": 9.601670048154327,
+          "max_abs_err": 524288.0,
+          "max_rel_err": 52428800000000.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 74 \u2014 Run\n\n**Commit**: 0224ca5\n**Date**: 2026-03-30 05:10 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.569 | 19.20x | PASSED |\n| small | 80 | 0.880 | 17.76x | PASSED |\n| medium | 901 | 1.053 | 19.77x | PASSED |\n| large | 14107 | 4.670 | 9.60x | PASSED |\n\n**Avg speedup**: 16.58x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_075_0224ca5_run",
+    "config": {
+      "round": 75,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:11 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 75,
+      "commit": "0224ca5",
+      "ts": "2026-03-30 05:11 UTC",
+      "all_passed": true,
+      "avg_speedup": 16.59,
+      "workloads": [
+        {
+          "uuid": "e05c6c03",
+          "tier": "tiny",
+          "seq": 1,
+          "status": "PASSED",
+          "lat_ms": 0.5815518079996109,
+          "speedup": 18.844930352329012,
+          "max_abs_err": 2048.0,
+          "max_rel_err": 21.20438003540039
+        },
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8683626868724822,
+          "speedup": 18.057378179253394,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 1387.476806640625
+        },
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.0519457952976228,
+          "speedup": 19.84514341726073,
+          "max_abs_err": 501760.0,
+          "max_rel_err": 50176001572864.0
+        },
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.66319905948639,
+          "speedup": 9.630547528907018,
+          "max_abs_err": 643072.0,
+          "max_rel_err": 64307198951424.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 75 \u2014 Run\n\n**Commit**: 0224ca5\n**Date**: 2026-03-30 05:11 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.582 | 18.84x | PASSED |\n| small | 80 | 0.868 | 18.06x | PASSED |\n| medium | 901 | 1.052 | 19.85x | PASSED |\n| large | 14107 | 4.663 | 9.63x | PASSED |\n\n**Avg speedup**: 16.59x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
   }
 ];

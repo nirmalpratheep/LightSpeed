@@ -26,7 +26,40 @@ Create high-performance GPU kernels for state-of-the-art LLM architectures on NV
 
 ## Benchmark Results (B200)
 
-### V7 — Large Tier GEMM2 BM=64 (Current)
+### V8 — Per-Tier Pipeline Tuning (Current)
+
+**Solution:** `moe-v2-zerocopy-noatomic` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
+**Commit:** `0224ca5` | **Changes:**
+- Small: GEMM1 `stages=6→7`, GEMM2 `BK=64→128`, `stages=8→6` — deeper pipeline + fewer K-iterations
+- Medium: GEMM2 `BK=32→64`, `stages=8→4` — halves K-iterations (224→112); GEMM1 `stages=3→4`
+- Large: reduce `BLOCK_H=256→1024` (7 blocks vs 28); GEMM1 `stages=3→5` — deeper latency hiding
+
+| Workload | Tier | Status | Latency (ms) | Speedup | Max Abs Error | Max Rel Error |
+|----------|------|--------|-------------|---------|---------------|---------------|
+| b8f4f012 | tiny | PASSED | 0.630 | **18.61x** | 4.10e+03 | 1.81e+01 |
+| e05c6c03 | tiny | PASSED | 0.600 | **18.52x** | 2.05e+03 | 3.26e+00 |
+| 6230e838 | small | PASSED | 0.790 | **17.96x** | 4.10e+03 | 9.91e+01 |
+| 8f1ff9f1 | small | PASSED | 0.891 | **17.87x** | 4.10e+03 | 6.11e+02 |
+| a7c2bcfd | small | PASSED | 0.652 | **19.67x** | 4.10e+03 | 1.98e+02 |
+| 2e69caee | small | PASSED | 0.519 | **22.22x** | 4.10e+03 | 2.83e+01 |
+| 8cba5890 | small | PASSED | 0.649 | **19.29x** | 2.05e+03 | 2.07e+01 |
+| 5eadab1e | small | PASSED | 0.699 | **19.90x** | 4.10e+03 | 7.16e+01 |
+| eedc63b2 | small | PASSED | 0.775 | **17.76x** | 4.10e+03 | 3.61e+02 |
+| e626d3e6 | small | PASSED | 0.816 | **18.79x** | 4.10e+03 | 4.44e+01 |
+| 74d7ff04 | small | PASSED | 0.819 | **18.30x** | 4.10e+03 | 4.65e+02 |
+| 4822167c | small | PASSED | 0.817 | **18.48x** | 2.05e+03 | 1.29e+02 |
+| 81955b1e | small | PASSED | 0.813 | **18.03x** | 4.10e+03 | 5.36e+02 |
+| 76010cb4 | small | PASSED | 0.794 | **18.16x** | 4.10e+03 | 3.69e+01 |
+| fc378037 | small | PASSED | 0.814 | **18.05x** | 8.19e+03 | 1.06e+02 |
+| f7d6ac7c | small | PASSED | 0.698 | **19.30x** | 4.10e+03 | 8.87e+01 |
+| 1a4c6ba1 | medium | PASSED | 1.074 | **19.63x** | 3.42e+05 | 3.36e+13 |
+| 5e8dc11c | large | PASSED | 4.716 | **9.57x** | 4.75e+05 | 4.75e+13 |
+| 58a34f27 | large | PASSED | 3.400 | **10.55x** | 4.62e+05 | 4.20e+13 |
+
+**Summary:** All 19 workloads passed. Speedups range from 17.76x to 22.22x (non-large), **9.57x–10.55x (large)**. Avg speedup: **17.93x**. Avg latency: **1.10 ms**.
+**V8 vs V7:** Every workload improved. Small +7–9%, medium +9.8% (`17.87x→19.63x`), large `5e8dc11c` +5.2% (`9.10x→9.57x`), large `58a34f27` +5.8% (`9.97x→10.55x`). Overall avg +7.9% (`16.61x→17.93x`).
+
+### V7 — Large Tier GEMM2 BM=64
 
 **Solution:** `moe-v2-zerocopy-noatomic` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
 **Commit:** `08386d2` | **Change:** Large GEMM2 `BM=32→64`, `stages=6→4` — halves B-matrix reads for large tier
