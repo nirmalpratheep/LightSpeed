@@ -2038,7 +2038,7 @@ if USE_FP8_TRITON:
         tm1, tm2 = build_two_tile_maps_gpu(
             eoffs, BM=32, BN1=256, N1=GEMM1_OUT_SIZE, BN2=128, N2=HIDDEN_SIZE, device=device)
 
-        # GEMM1+SwiGLU: BM=32, 8 warps, 6 stages, light persistent (1× NUM_SMS)
+        # GEMM1+SwiGLU: BM=32, 8 warps, 8 stages (smem 160KB/CTA<232KB)
         act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
         if tm1.shape[0] > 0:
             grid1 = min(_NUM_SMS, tm1.shape[0])
@@ -2058,12 +2058,12 @@ if USE_FP8_TRITON:
                 stride_bs_n=gemm1_weights_scale.stride(1),
                 stride_bs_k=gemm1_weights_scale.stride(2),
                 BLOCK_M=32, BLOCK_K=128, HALF_N=128, FP8_BLK=BLOCK,
-                num_warps=8, num_stages=6)
+                num_warps=8, num_stages=7)
 
-        # GEMM2: BM=32 BK=64 stages=8 (proven for small tier — grid=148SMs, pipeline depth wins)
+        # GEMM2: BM=32 BK=128 stages=6 — halves K-iters (112->56), smem 192KB/CTA
         g2o = _launch_gemm2_with_tm(
             act_fp32, gemm2_weights, gemm2_weights_scale, tm2, T,
-            BM=32, BN=128, BK=64, warps=8, stages=8, grid_mult=1, device=device)
+            BM=32, BN=128, BK=128, warps=8, stages=6, grid_mult=1, device=device)
         del act_fp32, tm1, tm2
 
         # Reduce: fp32 scatter_add — in-place weighted
