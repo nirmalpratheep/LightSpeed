@@ -2200,8 +2200,7 @@ if USE_FP8_TRITON:
                 BLOCK_M=64, BLOCK_K=128, HALF_N=128, FP8_BLK=BLOCK,
                 num_warps=8, num_stages=5)
 
-        # GEMM2: BM=64 BK=64 stages=4 → 24KB/stage x4x2CTAs=192KB < 232KB -> 2 CTAs/SM
-        # BM=64 halves B reads vs BM=32 (B is reused across more A rows per tile)
+        # GEMM2: FP32×FP8 (TF32 tensor cores), smem 24KB/stage×4×2CTAs=192KB<232KB
         g2o = _launch_gemm2_with_tm(
             act_fp32, gemm2_weights, gemm2_weights_scale, tm2, T,
             BM=64, BN=128, BK=64, warps=8, stages=4, grid_mult=2, device=device)
