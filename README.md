@@ -26,7 +26,36 @@ Create high-performance GPU kernels for state-of-the-art LLM architectures on NV
 
 ## Benchmark Results (B200)
 
-### V8 — Per-Tier Pipeline Tuning (Current)
+### Latest Re-run (2026-04-08, B200)
+
+**Solution:** `moe-v2-zerocopy-noatomic` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
+**Commit:** `ddd901e` | **Notes:** Same kernel as V8 + GEMM2 correctness fix (`ddd901e`); fresh Modal B200 run.
+
+| Workload | Tier | Status | Latency (ms) | Speedup | Max Abs Error | Max Rel Error |
+|----------|------|--------|-------------|---------|---------------|---------------|
+| b8f4f012 | tiny | PASSED | 0.640 | **17.99x** | 2.05e+03 | 6.16e+01 |
+| e05c6c03 | tiny | PASSED | 0.882 | 12.58x | 2.05e+03 | 6.25e+00 |
+| 6230e838 | small | PASSED | 0.859 | 16.89x | 4.10e+03 | 2.26e+02 |
+| 8f1ff9f1 | small | PASSED | 0.946 | 17.50x | 4.10e+03 | 3.36e+02 |
+| a7c2bcfd | small | PASSED | 0.657 | **20.20x** | 2.05e+03 | 8.67e+01 |
+| 2e69caee | small | PASSED | 0.784 | 14.99x | 4.10e+03 | 2.09e+02 |
+| 8cba5890 | small | PASSED | 0.671 | 18.77x | 4.10e+03 | 3.23e+01 |
+| 5eadab1e | small | PASSED | 0.726 | 18.96x | 4.10e+03 | 4.71e+02 |
+| eedc63b2 | small | PASSED | 0.814 | 16.69x | 4.10e+03 | 1.15e+02 |
+| e626d3e6 | small | PASSED | 0.859 | 17.76x | 4.10e+03 | 1.17e+02 |
+| 74d7ff04 | small | PASSED | 0.835 | 17.87x | 4.10e+03 | 1.29e+02 |
+| 4822167c | small | PASSED | 0.814 | 18.38x | 2.05e+03 | 1.90e+02 |
+| 81955b1e | small | PASSED | 0.783 | 18.63x | 2.05e+03 | 1.61e+03 |
+| 76010cb4 | small | PASSED | 0.897 | 16.01x | 4.10e+03 | 2.84e+02 |
+| fc378037 | small | PASSED | 0.936 | 15.94x | 4.10e+03 | 1.83e+01 |
+| f7d6ac7c | small | PASSED | 0.834 | 16.11x | 4.10e+03 | 1.56e+02 |
+| 1a4c6ba1 | medium | PASSED | 1.115 | **19.45x** | 3.97e+05 | 3.97e+13 |
+| 5e8dc11c | large | PASSED | 4.836 | 9.62x | 6.10e+05 | 5.16e+13 |
+| 58a34f27 | large | PASSED | 3.407 | 10.56x | 6.02e+05 | 6.02e+13 |
+
+**Summary:** All 19 workloads passed. Speedups range from 9.62x–20.20x. Avg speedup: **16.57x**. Avg latency: **1.17 ms**. Large tier holds 9.62x/10.56x; medium hits 19.45x (new high).
+
+### V8 — Per-Tier Pipeline Tuning
 
 **Solution:** `moe-v2-zerocopy-noatomic` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
 **Commit:** `0224ca5` | **Changes:**
