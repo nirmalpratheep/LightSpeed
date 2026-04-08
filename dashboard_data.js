@@ -4044,5 +4044,233 @@ window.EXPERIMENTS = [
     },
     "ncu": {},
     "notes": "# Round 75 \u2014 Run\n\n**Commit**: 0224ca5\n**Date**: 2026-03-30 05:11 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.582 | 18.84x | PASSED |\n| small | 80 | 0.868 | 18.06x | PASSED |\n| medium | 901 | 1.052 | 19.85x | PASSED |\n| large | 14107 | 4.663 | 9.63x | PASSED |\n\n**Avg speedup**: 16.59x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_076_4b83789_run",
+    "config": {
+      "round": 76,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:31 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 76,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:31 UTC",
+      "all_passed": false,
+      "avg_speedup": 0.0,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "INCORRECT_NUMERICAL",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": 544768.0,
+          "max_rel_err": 46489598427136.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 76 \u2014 Run\n\n**Commit**: 4b83789\n**Date**: 2026-03-31 02:31 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | N/A | N/A | INCORRECT_NUMERICAL |\n\n**Avg speedup**: 0.00x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_077_4b83789_run",
+    "config": {
+      "round": 77,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:32 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 77,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:32 UTC",
+      "all_passed": false,
+      "avg_speedup": 0.0,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "INCORRECT_NUMERICAL",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": 485376.0,
+          "max_rel_err": 42598400000000.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 77 \u2014 Run\n\n**Commit**: 4b83789\n**Date**: 2026-03-31 02:32 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | N/A | N/A | INCORRECT_NUMERICAL |\n\n**Avg speedup**: 0.00x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_078_4b83789_run",
+    "config": {
+      "round": 78,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:34 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 78,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:34 UTC",
+      "all_passed": false,
+      "avg_speedup": 0.0,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "INCORRECT_NUMERICAL",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": 643072.0,
+          "max_rel_err": 47718399475712.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 78 \u2014 Run\n\n**Commit**: 4b83789\n**Date**: 2026-03-31 02:34 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | N/A | N/A | INCORRECT_NUMERICAL |\n\n**Avg speedup**: 0.00x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_079_4b83789_run",
+    "config": {
+      "round": 79,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:36 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 79,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:36 UTC",
+      "all_passed": false,
+      "avg_speedup": 18.56,
+      "workloads": [
+        {
+          "uuid": "e05c6c03",
+          "tier": "tiny",
+          "seq": 1,
+          "status": "PASSED",
+          "lat_ms": 0.6060714886188506,
+          "speedup": 18.455617920103148,
+          "max_abs_err": 2048.0,
+          "max_rel_err": 8.963963508605957
+        },
+        {
+          "uuid": "8f1ff9f1",
+          "tier": "small",
+          "seq": 80,
+          "status": "PASSED",
+          "lat_ms": 0.8978092803955079,
+          "speedup": 17.735791952538687,
+          "max_abs_err": 4096.0,
+          "max_rel_err": 672.9989013671875
+        },
+        {
+          "uuid": "1a4c6ba1",
+          "tier": "medium",
+          "seq": 901,
+          "status": "PASSED",
+          "lat_ms": 1.075568764448166,
+          "speedup": 19.496604669549157,
+          "max_abs_err": 405504.0,
+          "max_rel_err": 40550401048576.0
+        },
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "INCORRECT_NUMERICAL",
+          "lat_ms": null,
+          "speedup": null,
+          "max_abs_err": 528384.0,
+          "max_rel_err": 52838398951424.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 79 \u2014 Run\n\n**Commit**: 4b83789\n**Date**: 2026-03-31 02:36 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| tiny | 1 | 0.606 | 18.46x | PASSED |\n| small | 80 | 0.898 | 17.74x | PASSED |\n| medium | 901 | 1.076 | 19.50x | PASSED |\n| large | 14107 | N/A | N/A | INCORRECT_NUMERICAL |\n\n**Avg speedup**: 18.56x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_080_4b83789_run",
+    "config": {
+      "round": 80,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:38 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 80,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:38 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.49,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.754926451683045,
+          "speedup": 9.491502838092723,
+          "max_abs_err": 622592.0,
+          "max_rel_err": 62259200000000.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 80 \u2014 Run\n\n**Commit**: 4b83789\n**Date**: 2026-03-31 02:38 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.755 | 9.49x | PASSED |\n\n**Avg speedup**: 9.49x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
+  },
+  {
+    "folder": "round_081_4b83789_run",
+    "config": {
+      "round": 81,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:39 UTC",
+      "note": "",
+      "tier": "all",
+      "strategy": "optimization",
+      "changes": ""
+    },
+    "results": {
+      "round": 81,
+      "commit": "4b83789",
+      "ts": "2026-03-31 02:39 UTC",
+      "all_passed": true,
+      "avg_speedup": 9.58,
+      "workloads": [
+        {
+          "uuid": "5e8dc11c",
+          "tier": "large",
+          "seq": 14107,
+          "status": "PASSED",
+          "lat_ms": 4.7341633310318,
+          "speedup": 9.576233984759572,
+          "max_abs_err": 602112.0,
+          "max_rel_err": 48947200524288.0
+        }
+      ]
+    },
+    "ncu": {},
+    "notes": "# Round 81 \u2014 Run\n\n**Commit**: 4b83789\n**Date**: 2026-03-31 02:39 UTC\n\n## Results\n\n| Tier | seq | lat(ms) | speedup | Status |\n|------|----:|--------:|--------:|--------|\n| large | 14107 | 4.734 | 9.58x | PASSED |\n\n**Avg speedup**: 9.58x\n\n## Observations\n\n_[fill in after reviewing results]_\n\n## Hypothesis for Next Run\n\n_[fill in before starting next round]_"
   }
 ];

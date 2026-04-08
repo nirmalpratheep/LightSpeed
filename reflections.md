@@ -1155,3 +1155,90 @@ modal run scripts/run_profiling.py
 **Hypothesis for next run**: _[fill in]_
 
 ---
+## 2026-03-31 02:31 UTC  `4b83789`
+
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | INCORRECT_NUMERICAL | N/A | N/A | 5.45e+05 | 4.65e+13 |
+
+**Summary**: 0/1 PASSED | avg speedup **0.00x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-31 02:32 UTC  `4b83789`
+
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | INCORRECT_NUMERICAL | N/A | N/A | 4.85e+05 | 4.26e+13 |
+
+**Summary**: 0/1 PASSED | avg speedup **0.00x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-31 02:34 UTC  `4b83789`
+
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | INCORRECT_NUMERICAL | N/A | N/A | 6.43e+05 | 4.77e+13 |
+
+**Summary**: 0/1 PASSED | avg speedup **0.00x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-31 02:36 UTC  `4b83789`
+
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| e05c6c03 | tiny | 1 | PASSED | 0.606 | 18.46x | 2.05e+03 | 8.96e+00 |
+| 8f1ff9f1 | small | 80 | PASSED | 0.898 | 17.74x | 4.10e+03 | 6.73e+02 |
+| 1a4c6ba1 | medium | 901 | PASSED | 1.076 | 19.50x | 4.06e+05 | 4.06e+13 |
+| 5e8dc11c | large | 14107 | INCORRECT_NUMERICAL | N/A | N/A | 5.28e+05 | 5.28e+13 |
+
+**Summary**: 3/4 PASSED | avg speedup **18.56x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-31 02:38 UTC  `4b83789`
+
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | PASSED | 4.755 | 9.49x | 6.23e+05 | 6.23e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **9.49x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
+## 2026-03-31 02:39 UTC  `4b83789`
+
+
+| UUID | Tier | seq | Status | lat(ms) | speedup | abs_err | rel_err |
+|------|------|----:|--------|--------:|--------:|--------:|--------:|
+| 5e8dc11c | large | 14107 | PASSED | 4.734 | 9.58x | 6.02e+05 | 4.89e+13 |
+
+**Summary**: 1/1 PASSED | avg speedup **9.58x**
+
+**What worked / what didn't**: _[fill in]_
+
+**Hypothesis for next run**: _[fill in]_
+
+---
