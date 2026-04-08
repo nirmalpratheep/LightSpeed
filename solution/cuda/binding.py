@@ -1,25 +1,9 @@
 """
-TVM FFI Bindings Template for CUDA Kernels.
+Unused under binding = "torch".
 
-This file provides Python bindings for your CUDA kernel using TVM FFI.
-The entry point function name should match the `entry_point` setting in config.toml.
-
-See the track definition for required function signature and semantics.
+The CUDA-track solution is built as a torch C++/CUDA extension; the framework
+JIT-compiles solution/cuda/kernel.cu via torch.utils.cpp_extension.load and
+calls the exported `kernel` symbol directly. This file is kept only because
+pack_solution scans the cuda source directory for any auxiliary files; it has
+no runtime role.
 """
-
-import ctypes
-from tvm.ffi import register_func
-
-
-@register_func("flashinfer.kernel")
-def kernel():
-    """
-    Python binding for your CUDA kernel.
-
-    TODO: Implement the binding according to the track definition.
-    This function should:
-    1. Accept the inputs as specified by the track definition
-    2. Launch your CUDA kernel with appropriate grid/block dimensions
-    3. Return outputs as specified by the track definition
-    """
-    pass

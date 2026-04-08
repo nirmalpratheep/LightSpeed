@@ -1,8 +1,9 @@
 [solution]
-name = "moe-v2-zerocopy-noatomic"    # Solution name (shows on leaderboard)
-definition = "moe_fp8_block_scale_ds_routing_topk8_ng8_kg4_e32_h7168_i2048"             # Track: fused_moe | sparse_attention | gated_delta_net
-author = "LIGHTSPEED/prateek,nirmal"              # Team/author name
+name = "moe-v2-zerocopy-noatomic"
+definition = "moe_fp8_block_scale_ds_routing_topk8_ng8_kg4_e32_h7168_i2048"
+author = "LIGHTSPEED/prateek,nirmal"
 
 [build]
-language = "triton"                  # triton | cuda
-entry_point = "kernel.py::kernel"               # Kernel function name in solution/triton/kernel.py
+language = "cuda"
+entry_point = "kernel.cu::kernel"
+binding = "torch"
