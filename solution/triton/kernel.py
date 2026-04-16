@@ -574,6 +574,101 @@ if USE_FP8_TRITON:
         tm2 = out2.view(max(total_tiles2, 1), 5)[:total_tiles2]
         return stids, seids, swts, eo, tm1, tm2
 
+    def routing_and_tilemaps_onesync_large(routing_logits, routing_bias, local_expert_offset,
+                                           routed_scaling_factor, BM1, BN1, N1, BM2, BN2, N2, device):
+        """Large-tier variant of routing_and_tilemaps_onesync.
+
+        Differences from the standard version:
+          - num_warps=4 for _fused_routing_kernel (better HBM bandwidth for large seq)
+          - Syncs full eo (33 ints) alongside T, sum_m1, sum_m2 in ONE .tolist()
+          - Returns eo_cpu for downstream tile-map splitting (multi-stream)
+        """
+        seq_len     = routing_logits.shape[0]
+        local_start = int(local_expert_offset)
+        local_end   = local_start + NUM_LOCAL_EXPERTS
+        total_slots = seq_len * TOP_K
+
+        out_tids    = torch.empty(total_slots, dtype=torch.int32, device=device)
+        out_eids    = torch.empty(total_slots, dtype=torch.int32, device=device)
+        out_wts     = torch.empty(total_slots, dtype=torch.float32, device=device)
+        expert_hist = torch.zeros(NUM_LOCAL_EXPERTS, dtype=torch.int32, device=device)
+
+        _fused_routing_kernel[(seq_len,)](
+            routing_logits, routing_bias,
+            out_tids, out_eids, out_wts, expert_hist,
+            local_start=local_start, local_end=local_end,
+            routed_scaling_factor=float(routed_scaling_factor),
+            stride_logit_row=routing_logits.stride(0),
+            SEQ_LEN=seq_len,
+            NUM_EXPERTS=NUM_EXPERTS, N_GROUP=N_GROUP,
+            GROUP_SIZE=NUM_EXPERTS // N_GROUP,
+            TOPK_GROUP=TOPK_GROUP, TOP_K=TOP_K, MAX_OUT=TOP_K,
+            NUM_LOCAL=NUM_LOCAL_EXPERTS, num_warps=4,
+        )
+
+        eo = torch.zeros(NUM_LOCAL_EXPERTS + 1, dtype=torch.int32, device=device)
+        eo[1:] = expert_hist.cumsum(0)
+
+        num_experts = NUM_LOCAL_EXPERTS
+        e_starts = eo[:-1].to(torch.int64)
+        M_es = (eo[1:].to(torch.int64) - e_starts).clamp(min=0)
+        n_tiles_N1 = (N1 + BN1 - 1) // BN1
+        n_tiles_N2 = (N2 + BN2 - 1) // BN2
+        m_tiles1 = (M_es + BM1 - 1) // BM1
+        m_tiles2 = (M_es + BM2 - 1) // BM2
+
+        sorted_tids_full = torch.empty(total_slots, dtype=torch.int32, device=device)
+        sorted_eids_full = torch.empty(total_slots, dtype=torch.int32, device=device)
+        sorted_wts_full  = torch.empty(total_slots, dtype=torch.float32, device=device)
+        expert_ctr       = torch.zeros(NUM_LOCAL_EXPERTS, dtype=torch.int32, device=device)
+        _counting_sort_kernel[(seq_len,)](
+            out_tids, out_eids, out_wts,
+            sorted_tids_full, sorted_eids_full, sorted_wts_full,
+            eo, expert_ctr,
+            SEQ_LEN=seq_len, TOP_K=TOP_K, NUM_LOCAL=NUM_LOCAL_EXPERTS, num_warps=1,
+        )
+
+        tiles_per_expert1 = m_tiles1 * n_tiles_N1
+        tiles_per_expert2 = m_tiles2 * n_tiles_N2
+        tiles_cumsum1 = tiles_per_expert1.cumsum(0)
+        tiles_cumsum2 = tiles_per_expert2.cumsum(0)
+
+        # ONE sync: eo (33 ints) + sum_m1 + sum_m2
+        sync_tensor = torch.cat([eo.to(torch.int64), m_tiles1.sum().unsqueeze(0), m_tiles2.sum().unsqueeze(0)])
+        sync_vals = sync_tensor.tolist()
+        eo_cpu = [int(v) for v in sync_vals[:NUM_LOCAL_EXPERTS + 1]]
+        T = eo_cpu[-1]
+        sum_m1 = int(sync_vals[NUM_LOCAL_EXPERTS + 1])
+        sum_m2 = int(sync_vals[NUM_LOCAL_EXPERTS + 2])
+
+        stids = sorted_tids_full[:T]
+        seids = sorted_eids_full[:T]
+        swts  = sorted_wts_full[:T]
+
+        if T == 0:
+            empty_t = torch.zeros(0, 5, dtype=torch.int64, device=device)
+            return stids, seids, swts, eo, eo_cpu, empty_t, empty_t
+
+        total_tiles1 = sum_m1 * n_tiles_N1
+        total_tiles2 = sum_m2 * n_tiles_N2
+
+        SEARCH_DEPTH = 6
+        out1 = torch.empty(max(total_tiles1, 1) * 5, dtype=torch.int64, device=device)
+        out2 = torch.empty(max(total_tiles2, 1) * 5, dtype=torch.int64, device=device)
+        if total_tiles1 > 0:
+            _build_tile_map_kernel[(total_tiles1,)](
+                e_starts, M_es, tiles_cumsum1, m_tiles1, out1,
+                n_tiles_N=n_tiles_N1, BM=BM1,
+                num_experts=num_experts, SEARCH_DEPTH=SEARCH_DEPTH, num_warps=1)
+        if total_tiles2 > 0:
+            _build_tile_map_kernel[(total_tiles2,)](
+                e_starts, M_es, tiles_cumsum2, m_tiles2, out2,
+                n_tiles_N=n_tiles_N2, BM=BM2,
+                num_experts=num_experts, SEARCH_DEPTH=SEARCH_DEPTH, num_warps=1)
+        tm1 = out1.view(max(total_tiles1, 1), 5)[:total_tiles1]
+        tm2 = out2.view(max(total_tiles2, 1), 5)[:total_tiles2]
+        return stids, seids, swts, eo, eo_cpu, tm1, tm2
+
     def routing_fused_argsort(routing_logits, routing_bias, local_expert_offset,
                               routed_scaling_factor):
         """Fused routing for large tier: uses argsort instead of counting sort.
@@ -1622,6 +1717,10 @@ if USE_FP8_TRITON:
     # Secondary CUDA stream for overlapping tile-map2 build with GEMM1 execution
     _stream2 = torch.cuda.Stream() if torch.cuda.is_available() else None
 
+    # Multi-stream pool for expert-group parallelism (large tier)
+    _N_GEMM_STREAMS = 4
+    _gemm_streams = [torch.cuda.Stream() for _ in range(_N_GEMM_STREAMS)] if torch.cuda.is_available() else []
+
     def _launch_gemm1(hidden_states, hidden_states_scale, stids,
                       gemm1_weights, gemm1_weights_scale,
                       eoffs, T, BM, BK, BN_G1, warps, stages, grid_mult, device):
@@ -1955,22 +2054,21 @@ if USE_FP8_TRITON:
                            local_expert_offset, routed_scaling_factor, output):
         """Optimized for seq_len ≤ 8. ~8 active experts, 0-1 tokens each.
         Small BLOCK_M minimizes wasted tile rows. Non-persistent grid avoids
-        idle CTAs when total_tiles << NUM_SMS."""
+        idle CTAs when total_tiles << NUM_SMS.
+        Change A: One-sync routing+tilemaps (single combined GPU→CPU sync)."""
         seq_len = routing_logits.shape[0]
         device = routing_logits.device
 
-        stids, seids, swts, eoffs = routing_fused(
-            routing_logits, routing_bias, local_expert_offset, routed_scaling_factor)
+        # --- Change A: one-sync routing + tile maps ---
+        stids, seids, swts, eo, tm1, tm2 = routing_and_tilemaps_onesync(
+            routing_logits, routing_bias, local_expert_offset, routed_scaling_factor,
+            BM1=16, BN1=256, N1=GEMM1_OUT_SIZE, BM2=32, BN2=128, N2=HIDDEN_SIZE,
+            device=device)
 
         T = stids.shape[0]
         if T == 0:
             output.zero_()
             return output
-
-        # Build both tile maps with ONE GPU→CPU sync (BM=16 for GEMM1, BM=32 for GEMM2)
-        tm1, tm2 = build_two_tile_maps_diff_bm_gpu(
-            eoffs, BM1=16, BN1=256, N1=GEMM1_OUT_SIZE, BM2=32, BN2=128, N2=HIDDEN_SIZE,
-            device=device)
 
         # GEMM1+SwiGLU: BM=16, 4 warps, 2 stages, non-persistent
         act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
@@ -2156,29 +2254,24 @@ if USE_FP8_TRITON:
                             gemm2_weights, gemm2_weights_scale,
                             local_expert_offset, routed_scaling_factor, output):
         """Optimized for seq_len > 2048.
-        GEMM1: FP8×FP8 tensor cores, BM=64, BK=128, stages=3.
-        GEMM2: FP32 (TF32 on B200), BM=64, BK=64, stages=4 (192KB → 2 CTAs/SM).
-          BM=64 halves B-matrix reads (FP8, 1B/elem): B_reads = T/BM × 56 × 128 × INTER.
-          Vs BM=32: 82 GB → 62 GB total GEMM2 traffic (25% less).
-          NOTE: FP8/BF16 GEMM2 fail tolerance for large sequences (SwiGLU dynamic range).
-        Reduce: _launch_reduce(block_h=256) — scatter_add OOM for T>50K tokens."""
+        Change A: One-sync routing+tilemaps (saves ~150us from eliminating 2nd CPU-GPU sync).
+        GEMM1: FP8×FP8 tensor cores, BM=64, BK=128, stages=5.
+        GEMM2: FP32 (TF32 on B200), BM=64, BK=64, stages=4.
+        Reduce: _launch_reduce(block_h=1024)."""
         seq_len = routing_logits.shape[0]
         device = routing_logits.device
 
-        stids, seids, swts, eoffs = routing_fused_large(
-            routing_logits, routing_bias, local_expert_offset, routed_scaling_factor)
+        # --- Change A: one-sync routing + tile maps ---
+        stids, seids, swts, eo, eo_cpu, tm1, tm2 = routing_and_tilemaps_onesync_large(
+            routing_logits, routing_bias, local_expert_offset, routed_scaling_factor,
+            BM1=64, BN1=256, N1=GEMM1_OUT_SIZE, BM2=64, BN2=128, N2=HIDDEN_SIZE, device=device)
 
-        T = stids.shape[0]
+        T = eo_cpu[-1]
         if T == 0:
             output.zero_()
             return output
 
-        # Build both tile maps: GEMM1 BM=64, GEMM2 BM=64
-        # BM2=64 halves B-matrix (FP8) reads vs BM2=32: B_reads = T/BM * 56 * 128 * INTER
-        tm1, tm2 = build_two_tile_maps_diff_bm_gpu(
-            eoffs, BM1=64, BN1=256, N1=GEMM1_OUT_SIZE, BM2=64, BN2=128, N2=HIDDEN_SIZE, device=device)
-
-        # GEMM1+SwiGLU: BM=64, 8 warps, 3 stages → FP32 act (proven — K=7168 needs deep pipeline)
+        # GEMM1+SwiGLU
         act_fp32 = torch.empty(T, INTERMEDIATE_SIZE, dtype=torch.float32, device=device)
         if tm1.shape[0] > 0:
             grid1 = min(_NUM_SMS * 2, tm1.shape[0])
@@ -2200,14 +2293,13 @@ if USE_FP8_TRITON:
                 BLOCK_M=64, BLOCK_K=128, HALF_N=128, FP8_BLK=BLOCK,
                 num_warps=8, num_stages=5)
 
-        # GEMM2: FP32×FP8 (TF32 tensor cores), smem 24KB/stage×4×2CTAs=192KB<232KB
+        # GEMM2: FP32×FP8 (TF32 tensor cores)
         g2o = _launch_gemm2_with_tm(
             act_fp32, gemm2_weights, gemm2_weights_scale, tm2, T,
             BM=64, BN=128, BK=64, warps=8, stages=4, grid_mult=2, device=device)
         del act_fp32, tm1, tm2
 
-        # Reduce with BLOCK_H=1024 (7 blocks vs 28 at 256 → less dispatch, 9.7x)
-        # scatter_add would allocate T×H×8 index bytes — too large for T=~90K tokens
+        # Reduce
         _launch_reduce(g2o, stids, swts, seq_len, device, output, block_h=1024)
         del g2o
         return output

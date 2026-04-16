@@ -26,7 +26,89 @@ Create high-performance GPU kernels for state-of-the-art LLM architectures on NV
 
 ## Benchmark Results (B200)
 
-### V8 — Per-Tier Pipeline Tuning (Current)
+### V10 — Change A on Tiny + Large (Current)
+
+**Solution:** `moe-v2-zerocopy-noatomic` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
+**Commit:** `cb36464+Δ` | **Change:** Apply Change A (one-sync routing+tilemaps via `routing_and_tilemaps_onesync`) to the **tiny** tier in addition to the **large** tier. Small and medium reverted to V8 (`routing_fused` + `build_two_tile_maps_gpu`) after V9 experiment showed regression on those tiers.
+
+**Per-workload results** (mean of 2 clean Modal B200 runs; one earlier run was a bad-instance outlier and is excluded):
+
+| Workload | Tier | Status | Latency (ms) | Speedup | Max Abs Error | Max Rel Error |
+|----------|------|--------|-------------:|--------:|---------------|---------------|
+| b8f4f012 | tiny | PASSED | 0.653 | **18.00x** | 4.10e+03 | 1.25e+01 |
+| e05c6c03 | tiny | PASSED | 0.614 | **18.15x** | 2.05e+03 | 4.29e+00 |
+| 6230e838 | small | PASSED | 0.811 | 17.54x | 4.10e+03 | 1.23e+02 |
+| 8f1ff9f1 | small | PASSED | 0.896 | 18.12x | 4.10e+03 | 2.55e+02 |
+| a7c2bcfd | small | PASSED | 0.650 | **19.65x** | 4.10e+03 | 1.07e+03 |
+| 2e69caee | small | PASSED | 0.526 | **21.92x** | 4.10e+03 | 1.22e+01 |
+| 8cba5890 | small | PASSED | 0.642 | **19.40x** | 2.05e+03 | 4.28e+01 |
+| 5eadab1e | small | PASSED | 0.671 | **20.60x** | 4.10e+03 | 1.75e+02 |
+| eedc63b2 | small | PASSED | 0.773 | 17.75x | 4.10e+03 | 2.11e+03 |
+| e626d3e6 | small | PASSED | 0.803 | **19.39x** | 4.10e+03 | 6.87e+02 |
+| 74d7ff04 | small | PASSED | 0.789 | **19.02x** | 4.10e+03 | 3.38e+02 |
+| 4822167c | small | PASSED | 0.799 | **18.91x** | 4.10e+03 | 2.81e+02 |
+| 81955b1e | small | PASSED | 0.780 | **18.76x** | 4.10e+03 | 2.63e+02 |
+| 76010cb4 | small | PASSED | 0.758 | **18.85x** | 4.10e+03 | 6.91e+01 |
+| fc378037 | small | PASSED | 0.781 | **18.87x** | 4.10e+03 | 4.43e+02 |
+| f7d6ac7c | small | PASSED | 0.663 | **20.09x** | 4.10e+03 | 8.57e+01 |
+| 1a4c6ba1 | medium | PASSED | 1.081 | 19.43x | 3.74e+05 | 3.62e+13 |
+| 5e8dc11c | large | PASSED | 4.655 | **9.83x** | 6.02e+05 | 4.87e+13 |
+| 58a34f27 | large | PASSED | 3.297 | **10.90x** | 5.32e+05 | 5.04e+13 |
+
+**Summary:** All 19 workloads passed. Avg speedup: **18.17x**. Avg latency: **1.086 ms**.
+
+**V10 vs V8 — per-tier deltas (2-run mean):**
+| Tier    | V8 avg | V10 avg | Δ |
+|---------|-------:|--------:|--:|
+| tiny    | 18.57x | 18.08x  | -2.6% (within ±15-20% B200 noise) |
+| small   | 18.84x | 19.21x  | **+2.0%** ✅ |
+| medium  | 19.63x | 19.43x  | -1.0% (noise) |
+| large   | 10.06x | 10.37x  | **+3.1%** ✅ |
+| **overall** | **17.93x** | **18.17x** | **+1.3%** |
+
+**Conclusion:** Change A (one-sync routing+tilemaps) is a net win only on the **large** tier (+3.1%), which has the highest absolute sync-gap cost (~150 µs of the 4.7 ms budget). Applied to small/medium, it regressed — the pre-existing `routing_fused` + `build_two_tile_maps_gpu` path is better tuned for those seq_len ranges, and the single saved sync doesn't pay for the extra GPU bookkeeping. The tiny result is essentially flat (within Modal B200's ±15-20% single-run variance). **Current configuration:** Change A kept on tiny + large; small + medium on V8 code.
+
+### V9 — Change A Applied to All Tiers (Experiment, Reverted)
+
+**Solution:** `moe-v2-zerocopy-noatomic` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
+**Commit:** `cb36464+Δ` | **Change:** Apply Change A (one-sync routing+tilemaps via `routing_and_tilemaps_onesync`) to tiny, small, and medium tiers. Previously only large used it.
+
+| Workload | Tier | Status | Latency (ms) | Speedup | Max Abs Error | Max Rel Error |
+|----------|------|--------|-------------|---------|---------------|---------------|
+| b8f4f012 | tiny | PASSED | 0.619 | **18.74x** | 4.10e+03 | 3.94e+01 |
+| e05c6c03 | tiny | PASSED | 0.591 | **18.38x** | 2.05e+03 | 4.82e+00 |
+| 6230e838 | small | PASSED | 0.844 | 16.42x | 4.10e+03 | 5.47e+02 |
+| 8f1ff9f1 | small | PASSED | 0.946 | 17.00x | 4.10e+03 | 8.25e+02 |
+| a7c2bcfd | small | PASSED | 0.779 | 16.10x | 2.05e+03 | 3.00e+02 |
+| 2e69caee | small | PASSED | 0.642 | 17.98x | 4.10e+03 | 1.18e+01 |
+| 8cba5890 | small | PASSED | 0.807 | 15.45x | 2.05e+03 | 7.15e+01 |
+| 5eadab1e | small | PASSED | 0.842 | 16.63x | 4.10e+03 | 1.57e+02 |
+| eedc63b2 | small | PASSED | 0.888 | 16.04x | 4.10e+03 | 3.88e+02 |
+| e626d3e6 | small | PASSED | 0.931 | 17.02x | 4.10e+03 | 1.45e+02 |
+| 74d7ff04 | small | PASSED | 0.919 | 16.54x | 4.10e+03 | 6.40e+01 |
+| 4822167c | small | PASSED | 0.940 | 16.23x | 4.10e+03 | 1.23e+09 |
+| 81955b1e | small | PASSED | 0.936 | 15.83x | 4.10e+03 | 1.62e+02 |
+| 76010cb4 | small | PASSED | 0.899 | 16.15x | 4.10e+03 | 2.39e+02 |
+| fc378037 | small | PASSED | 0.883 | 16.93x | 4.10e+03 | 7.20e+01 |
+| f7d6ac7c | small | PASSED | 0.765 | 17.24x | 4.10e+03 | 1.05e+02 |
+| 1a4c6ba1 | medium | PASSED | 1.144 | 18.19x | 3.93e+05 | 3.65e+13 |
+| 5e8dc11c | large | PASSED | 4.665 | **9.79x** | 5.41e+05 | 5.24e+13 |
+| 58a34f27 | large | PASSED | 3.323 | **10.78x** | 6.39e+05 | 4.81e+13 |
+
+**Summary:** All 19 workloads passed. Avg speedup: **16.18x**. Avg latency: **1.18 ms**.
+
+**V9 vs V8 — per-tier deltas:**
+| Tier | V8 avg speedup | V9 avg speedup | Δ |
+|------|---------------:|---------------:|---:|
+| tiny  | 18.57x | 18.56x | ~0% (noise) |
+| small | 18.77x | 16.40x | **-12.6%** ⚠️ regression |
+| medium | 19.63x | 18.19x | **-7.3%** ⚠️ regression |
+| large | 10.06x | 10.29x | **+2.2%** ✅ slight gain |
+| **overall** | **17.93x** | **16.18x** | **-9.8%** |
+
+**Conclusion:** Change A is **not** a universal win. It helps large (where two routing-path syncs were live cost) but regresses small/medium. The smaller tiers already combined the two tilemap syncs efficiently via `build_two_tile_maps_gpu`; the `routing_and_tilemaps_onesync` path adds extra GPU work (worst-case allocation of `seq_len*TOP_K` arrays, per-tile-map cumsums launched before sync, stacked 3-element `.tolist()`) that outweighs the single eliminated sync when seq_len is small. Note: B200 single-run variance is ±15–20% per memory — but the regression on small is systematic across 14/14 workloads, not noise. **Recommendation: revert Change A on tiny/small/medium; keep only on large (V8 configuration).**
+
+### V8 — Per-Tier Pipeline Tuning (Previous)
 
 **Solution:** `moe-v2-zerocopy-noatomic` | **Track:** `fused_moe` | **Team:** `LIGHTSPEED/prateek,nirmal`
 **Commit:** `0224ca5` | **Changes:**

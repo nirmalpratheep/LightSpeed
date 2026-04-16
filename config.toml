@@ -4,6 +4,6 @@ definition = "moe_fp8_block_scale_ds_routing_topk8_ng8_kg4_e32_h7168_i2048"
 author = "LIGHTSPEED/prateek,nirmal"
 
 [build]
-language = "cuda"
-entry_point = "kernel.cu::kernel"
+language = "triton"
+entry_point = "kernel.py::kernel"
 binding = "torch"
